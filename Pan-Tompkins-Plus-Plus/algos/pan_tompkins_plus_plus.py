@@ -426,8 +426,87 @@ class Pan_Tompkins_Plus_Plus():
         qrs_i = qrs_i[:Beat_C+1]
         
         return qrs_i_raw
-    
+    def compute_ecg_features(self, sig, fs):
 
+        import numpy as np
+        from scipy import signal
+
+        sig = np.asarray(sig, dtype=float)
+        n = sig.size
+
+        # 1) R-peak detection（用你現成的偵測器）
+        peaks = np.asarray(self.rpeak_detection(sig, fs), dtype=int)
+        beats_count = int(peaks.size)
+
+        # 2) Instantaneous HR from RR
+        if beats_count >= 2:
+            rr = np.diff(peaks) / float(fs)           # s
+            hr_inst = 60.0 / rr                       # bpm
+            max_hr = float(np.max(hr_inst))
+        else:
+            hr_inst = np.array([])
+            max_hr = np.nan
+
+        # 3) ST metrics per beat（baseline referenced）
+        st_vals, slopes = [], []
+        pre_w1 = int(0.20 * fs)   # -200 ms
+        pre_w2 = int(0.12 * fs)   # -120 ms
+        j_off  = int(0.04 * fs)   # +40 ms
+        st_s   = int(0.06 * fs)   # +60 ms
+        st_e   = int(0.08 * fs)   # +80 ms
+        slope_win = int(0.08 * fs)
+
+        for r in peaks:
+            pre_start = r - pre_w1
+            pre_end   = r - pre_w2
+            j         = r + j_off
+            st_start  = r + st_s
+            st_end    = r + st_e
+
+            # 邊界檢查
+            if pre_start < 0 or pre_end <= pre_start or st_end >= n or j >= n:
+                continue
+
+            baseline = float(np.median(sig[pre_start:pre_end]))
+
+            # (A) ST offset（signed）：+elevation / -depression
+            st_seg = sig[st_start:st_end] - baseline
+            if st_seg.size:
+                st_vals.append(float(np.mean(st_seg)))
+
+            # (B) ST slope（J -> J+80 ms 線性擬合斜率，單位 mV/s）
+            j_end = min(j + slope_win, n)
+            x = np.arange(j, j_end) / float(fs)
+            y = sig[j:j_end] - baseline
+            if x.size >= 3:
+                k, _ = np.polyfit(x, y, 1)
+                slopes.append(float(k))
+
+        # 4) 聚合統計
+        oldpeak_signed = float(np.median(st_vals)) if st_vals else np.nan
+        oldpeak_mag    = float(np.median(np.abs(st_vals))) if st_vals else np.nan
+        st_slope       = float(np.median(slopes)) if slopes else np.nan
+
+        # 5) 由 slope 給 3 類標籤（閾值可依資料校正）
+        thr_slope = 0.5  # mV/s；可調 0.3~1.0
+        if np.isfinite(st_slope):
+            if st_slope >  thr_slope: st_label = "Up"
+            elif st_slope < -thr_slope: st_label = "Down"
+            else:                       st_label = "Flat"
+        else:
+            st_label = None
+
+        return {
+            "HR": max_hr,                 # bpm（max instantaneous)
+            "Oldpeak": oldpeak_signed,    # mV（有號）
+            "OldpeakAbs": oldpeak_mag,    # mV（絕對值）
+            "ST_Slope": st_slope,         # mV/s（連續值）
+            "ST_Label": st_label,         # Up/Flat/Down
+            "n_beats": beats_count,
+        }
+
+    
+    
 def smoother(signal=None, kernel='boxzen', size=10, mirror=True, **kwargs):
 
         # check inputs
@@ -506,6 +585,7 @@ def smoother(signal=None, kernel='boxzen', size=10, mirror=True, **kwargs):
     #    params.update(kwargs)
     
         return smoothed
+
     
 def _get_window(kernel, size, **kwargs):
 
