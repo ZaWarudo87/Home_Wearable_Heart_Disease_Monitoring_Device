@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    container_name: heart-monitor-backend
+    ports:
+      - "5001:5001"
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    volumes:
+      # 如果需要持久化資料，可以掛載卷
+      - ./logs:/app/logs
+    networks:
+      - heart-monitor-network
+
+networks:
+  heart-monitor-network:
+    driver: bridge

@@ -1,0 +1,45 @@
+/* 基礎樣式 */
+body { 
+    box-sizing: border-box; 
+}
+
+/* 圖表容器 */
+.chart-container { 
+    position: relative; 
+    height: 300px; 
+    width: 100%; 
+}
+
+.gauge-container { 
+    position: relative; 
+    height: 200px; 
+    width: 100%; 
+}
+
+/* 警告指示器動畫 */
+.warning-indicator { 
+    animation: pulse 2s infinite; 
+}
+
+@keyframes pulse { 
+    0%, 100% { 
+        opacity: 1; 
+    } 
+    50% { 
+        opacity: 0.5; 
+    } 
+}
+
+/* 卡片 hover 效果 */
+.card-hover { 
+    transition: transform 0.2s ease-in-out; 
+}
+
+.card-hover:hover { 
+    transform: translateY(-2px); 
+}
+
+/* View Transition API */
+@view-transition { 
+    navigation: auto; 
+}

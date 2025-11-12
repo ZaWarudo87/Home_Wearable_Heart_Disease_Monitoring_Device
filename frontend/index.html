@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="zh-TW" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>心臟健康監測系統</title>
+  
+  <!-- External CSS -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- External Scripts -->
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+ </head>
+ 
+ <body class="h-full bg-gradient-to-br from-blue-50 to-indigo-100 font-sans">
+
+  <!-- 登入畫面 -->
+  <div id="login-view" class="flex items-center justify-center min-h-full">
+   <div class="bg-white p-8 rounded-xl shadow-lg text-center">
+    <h1 class="text-2xl font-bold text-gray-900 mb-4">心臟健康監測系統</h1>
+    <p class="text-gray-600 mb-6">請使用 Google 帳戶登入</p>
+    <div id="g_id_signin"></div>
+   </div>
+  </div>
+
+  <!-- 新用戶註冊表單 -->
+  <div id="registration-view" class="flex items-center justify-center min-h-full hidden">
+   <div class="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+    <h1 class="text-2xl font-bold text-gray-900 mb-4">完善個人資料</h1>
+    <p class="text-gray-600 mb-6">請填寫以下資料以建立您的健康檔案</p>
+    <form id="registration-form" class="space-y-4">
+     <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">生理性別</label>
+      <select id="sex" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+       <option value="">請選擇</option>
+       <option value="M">男性</option>
+       <option value="F">女性</option>
+      </select>
+     </div>
+     <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">年齡</label>
+      <input type="number" id="age" required min="1" max="120" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="請輸入年齡">
+     </div>
+     <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">胸痛類別</label>
+      <select id="chest-pain-type" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+       <option value="">請選擇</option>
+       <option value="TA">典型心絞痛 (TA)</option>
+       <option value="ATA">非典型心絞痛 (ATA)</option>
+       <option value="NAP">非心絞痛性疼痛 (NAP)</option>
+       <option value="ASY">無症狀 (ASY)</option>
+      </select>
+     </div>
+     <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">是否有運動心絞痛的問題</label>
+      <select id="exercise-angina" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+       <option value="">請選擇</option>
+       <option value="Y">是</option>
+       <option value="N">否</option>
+      </select>
+     </div>
+     <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors duration-200">
+      提交資料
+     </button>
+    </form>
+   </div>
+  </div>
+
+  <!-- 儀表板主畫面 (預設隱藏) -->
+  <div id="dashboard-view" class="min-h-full hidden"><header class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+     <div class="flex justify-between items-center py-4">
+      <div>
+       <h1 id="dashboard-title" class="text-2xl font-bold text-gray-900">心臟健康監測系統</h1>
+       <p class="text-sm text-gray-600">歡迎回來，<span id="user-name" class="font-medium text-indigo-600">...</span> <span class="mx-2">•</span> <span id="last-update">最後更新：...</span></p>
+      </div>
+      <button id="logout-button" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors duration-200"> 登出 </button>
+     </div>
+    </div>
+   </header>
+   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"><div class="mb-6">
+     <div class="flex overflow-x-auto space-x-2 pb-2"><button id="tab-overview" class="flex-shrink-0 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium"> 總覽 </button> <button id="tab-bp" class="flex-shrink-0 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium"> 靜息血壓 </button> <button id="tab-hr1min" class="flex-shrink-0 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium"> 心率(1分鐘) </button> <button id="tab-hr30min" class="flex-shrink-0 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium"> 心率(30分鐘) </button> <button id="tab-risk" class="flex-shrink-0 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium"> 風險評估 </button> <button id="tab-ecg" class="flex-shrink-0 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium"> 即時ECG </button> <button id="tab-health-data" class="flex-shrink-0 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium"> 健康數據 </button>
+     </div>
+    </div><div id="page-overview" class="tab-content"><div class="grid grid-cols-1 gap-4 mb-6">
+      <div class="bg-white rounded-xl shadow-lg p-6">
+       <div class="flex items-center justify-between">
+        <div>
+         <p class="text-sm font-medium text-gray-600">靜息血壓</p>
+         <p id="resting-bp" class="text-3xl font-bold text-gray-900">--</p>
+         <p class="text-xs text-gray-500">mmHg</p>
+        </div>
+        <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+         <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+         </svg>
+        </div>
+       </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-lg p-6">
+       <div class="flex items-center justify-between">
+        <div>
+         <p class="text-sm font-medium text-gray-600">平均心率</p>
+         <p id="avg-hr" class="text-3xl font-bold text-gray-900">--</p>
+         <p class="text-xs text-gray-500">bpm</p>
+        </div>
+        <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+         <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+         </svg>
+        </div>
+       </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-lg p-6">
+       <div class="flex items-center justify-between">
+        <div>
+         <p class="text-sm font-medium text-gray-600">最大心率</p>
+         <p id="max-hr" class="text-3xl font-bold text-gray-900">--</p>
+         <p class="text-xs text-gray-500">bpm</p>
+        </div>
+        <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+         <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+         </svg>
+        </div>
+       </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-lg p-6">
+       <div class="flex items-center justify-between">
+        <div>
+         <p class="text-sm font-medium text-gray-600">ST下降值</p>
+         <p id="oldpeak" class="text-3xl font-bold text-gray-900">--</p>
+         <p class="text-xs text-gray-500">mV</p>
+        </div>
+        <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+         <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+         </svg>
+        </div>
+       </div>
+      </div>
+     </div>
+    </div><div id="page-bp" class="tab-content hidden">
+     <div class="mb-4">
+      <div class="flex space-x-2"><button id="bp-period-7" class="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm">7天</button> <button id="bp-period-30" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">30天</button>
+      </div>
+     </div>
+     <div class="bg-white rounded-xl shadow-lg p-4 mb-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">靜息血壓趨勢</h3>
+      <div class="chart-container">
+       <canvas id="bpChart"></canvas>
+      </div>
+     </div>
+     <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+      <h4 class="font-semibold text-blue-800 mb-2">正常範圍參考</h4>
+      <p class="text-sm text-blue-700">• 正常：收縮壓 &lt; 120 mmHg<br>
+        • 血壓偏高：120-129 mmHg<br>
+        • 高血壓第一期：130-139 mmHg<br>
+        • 高血壓第二期：≥ 140 mmHg</p>
+     </div>
+    </div><div id="page-hr1min" class="tab-content hidden">
+     <div class="mb-4">
+      <div class="flex space-x-2"><button id="hr1-period-1h" class="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm">1小時</button> <button id="hr1-period-6h" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">6小時</button>
+      </div>
+     </div>
+     <div class="bg-white rounded-xl shadow-lg p-4 mb-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">平均心率 (1分鐘間隔)</h3>
+      <div class="chart-container">
+       <canvas id="hr1minChart"></canvas>
+      </div>
+     </div>
+     <div class="bg-green-50 border-l-4 border-green-400 p-4 rounded-r-lg">
+      <h4 class="font-semibold text-green-800 mb-2">正常範圍參考</h4>
+      <p class="text-sm text-green-700">• 靜息心率：60-100 bpm<br>
+        • 運動心率：最大心率的 50-85%<br>
+        • 您的最大心率約：175 bpm (220-年齡)<br>
+        • 建議運動心率：88-149 bpm</p>
+     </div>
+    </div><div id="page-hr30min" class="tab-content hidden">
+     <div class="mb-4">
+      <div class="flex space-x-2"><button id="hr30-period-24h" class="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm">24小時</button> <button id="hr30-period-7d" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">7天</button>
+      </div>
+     </div>
+     <div class="bg-white rounded-xl shadow-lg p-4 mb-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">平均心率 (30分鐘間隔)</h3>
+      <div class="chart-container">
+       <canvas id="hr30minChart"></canvas>
+      </div>
+     </div>
+     <div class="bg-green-50 border-l-4 border-green-400 p-4 rounded-r-lg">
+      <h4 class="font-semibold text-green-800 mb-2">正常範圍參考</h4>
+      <p class="text-sm text-green-700">• 日間平均心率：70-90 bpm<br>
+        • 夜間平均心率：50-70 bpm<br>
+        • 心率變異性：正常範圍內波動<br>
+        • 異常警示：持續 &gt; 100 bpm 或 &lt; 50 bpm</p>
+     </div>
+    </div><div id="page-risk" class="tab-content hidden">
+     <div class="bg-white rounded-xl shadow-lg p-6 mb-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">整體風險評估</h3>
+      <div class="gauge-container">
+       <canvas id="gaugeChart"></canvas>
+      </div>
+      <div class="text-center mt-4">
+       <p class="text-2xl font-bold text-gray-900" id="risk-score">--</p>
+       <p class="text-sm text-gray-600">風險分數 (0-100)</p>
+       <p class="text-sm font-medium text-gray-600 mt-2" id="risk-level">--</p>
+      </div>
+     </div>
+    </div><div id="page-ecg" class="tab-content hidden">
+     <div class="mb-4">
+      <div class="flex space-x-2"><button id="ecg-play" class="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm">播放</button> <button id="ecg-pause" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">暫停</button>
+      </div>
+     </div>
+     <div class="bg-white rounded-xl shadow-lg p-4 mb-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">即時ECG波形圖</h3>
+      <div class="chart-container relative overflow-hidden">
+       <canvas id="ecgChart"></canvas>
+      </div>
+     </div>
+     <div class="bg-green-50 border-l-4 border-green-400 p-4 rounded-r-lg">
+      <h4 class="font-semibold text-green-800 mb-2">ECG 監測</h4>
+      <p class="text-sm text-green-700">• 接收來自後端的即時ECG波形圖數據。<br>
+        • 綠色線條代表即時心跳數據流。</p>
+     </div>
+    </div><div id="page-health-data" class="tab-content hidden">
+     <div class="bg-white rounded-xl shadow-lg p-6 mb-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">更新健康數據</h3>
+      <form id="health-data-form" class="space-y-4">
+       <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">靜息血壓 (mmHg)</label>
+        <input type="number" id="resting-bp-input" required min="70" max="200" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="例如: 120">
+        <p class="text-xs text-gray-500 mt-1">正常範圍: 90-140 mmHg</p>
+       </div>
+       <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">血清膽固醇 (mm/dl)</label>
+        <input type="number" id="cholesterol-input" required min="100" max="600" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="例如: 200">
+        <p class="text-xs text-gray-500 mt-1">正常範圍: 低於 200 mm/dl</p>
+       </div>
+       <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">空腹血糖 (mg/dl)</label>
+        <input type="number" id="fasting-bs-input" required min="50" max="400" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="例如: 100">
+        <p class="text-xs text-gray-500 mt-1">正常範圍: 70-100 mg/dl (空腹)</p>
+       </div>
+       <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors duration-200">
+        提交數據
+       </button>
+      </form>
+      <div id="health-data-success" class="hidden mt-4 p-4 bg-green-50 border-l-4 border-green-400 rounded-r-lg">
+       <p class="text-green-700">✓ 健康數據已成功更新！</p>
+      </div>
+     </div>
+     <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+      <h4 class="font-semibold text-blue-800 mb-2">數據說明</h4>
+      <p class="text-sm text-blue-700">• 請定期更新您的健康數據，以獲得更準確的健康評估。<br>
+        • 建議每週至少更新一次數據。<br>
+        • 數據將用於 AI 健康分析和風險評估。</p>
+     </div>
+    </div><div class="bg-white rounded-xl shadow-lg p-6">
+     <h3 class="text-lg font-semibold text-gray-900 mb-4">AI 健康建議</h3>
+     <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+      <p id="health-summary" class="text-gray-700 leading-relaxed">正在載入建議...</p>
+     </div>
+    </div>
+   </main>
+  </div>
+  
+  <!-- External JavaScript -->
+  <script src="script.js"></script>
+ </body>
+</html>
+

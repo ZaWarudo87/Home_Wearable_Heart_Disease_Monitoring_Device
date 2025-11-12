@@ -1,7 +1,30 @@
-﻿__pycache__/
+﻿# Python
+__pycache__/
 *.py[cod]
 *.pyo
 *.ipynb_checkpoints/
+
+# IDE
 .vscode/
+.idea/
+
+# Environment
 .env
+.env.local
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Docker
+*.log
+/tmp/
+/backend/logs/
+cloudflared.log
+
+# Docker volumes and data
+/backend/data/
+/backend/temp/
+
+# Docker build cache (optional - 可移除此行如果想追蹤)
+# .dockerignore already handles most build exclusions
