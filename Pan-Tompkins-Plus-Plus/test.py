@@ -17,18 +17,18 @@ RESAMPLE_TO  = None         # 例如 250 代表重採樣到 250 Hz；None 代表
 TIMESTAMP_COL = "timestamp" # CSV 欄名（秒）
 VALUE_COL     = "ecg_value" # CSV 欄名（ADC counts 或 mV）
 
+# 讀CSV
 def read_csv_one(path):
     """
     讀取一個 CSV（含表頭），欄位至少要有：timestamp, ecg_value
     回傳：timestamps(np.array[s])、ecg(np.array[float])
     """
-    ts, val = [], []
-    # utf-8-sig 可自動處理 BOM，避免欄名讀不到
+    ts, val = [], [] #ts 放時間 val 放ECG value
     with open(path, "r", newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
-        fields = [h.strip() for h in reader.fieldnames] if reader.fieldnames else []
-        # 容錯：移除欄名前後空白
+        fields = [h.strip() for h in reader.fieldnames] if reader.fieldnames else [] # 移除欄名前後空白
         name_map = {h.strip(): h for h in reader.fieldnames} if reader.fieldnames else {}
+        #檢查必要欄位
         if TIMESTAMP_COL not in fields or VALUE_COL not in fields:
             raise ValueError(f"{path} 缺少必要欄位 {TIMESTAMP_COL},{VALUE_COL} (header={reader.fieldnames})")
         for row in reader:
@@ -49,7 +49,7 @@ def estimate_fs(timestamps):
     以 median Δt 估計取樣率，返回 (fs_float, dt_stats)
     """
     dt = np.diff(timestamps)
-    dt = dt[(dt > 0) & np.isfinite(dt)]
+    dt = dt[(dt > 0) & np.isfinite(dt)] #保留正數且有限的時間差
     if dt.size == 0:
         raise ValueError("timestamp 無法估計 dt")
     fs = 1.0 / np.median(dt)
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     if CSV_DIR is None:
         raise FileNotFoundError("在專案附近找不到任何 .csv 資料夾，請確認檔案有放好。")
 
-    files = sorted(glob.glob(str(CSV_DIR / "*.csv")))
+    files = sorted(glob.glob(str(CSV_DIR / "*.csv"))) #排序找到的檔案
     if MAX_FILES:
         files = files[:MAX_FILES]
     print(f"[INFO] 使用的 CSV 目錄：{CSV_DIR}")
@@ -137,11 +137,12 @@ if __name__ == "__main__":
             t_axis = np.arange(ecg_use.size)
 
         # 5) R-peak 偵測 + 不應期去重（200 ms）
-        fs_i = int(round(fs_float))  # **關鍵**：轉整數，避免切片報錯
+        fs_i = int(round(fs_float))  # 轉整數，避免報錯
         qrs = np.asarray(det.rpeak_detection(ecg_use, fs_i), dtype=int)
 
+        #過濾假的 R-peak (200ms內不應有另一個peak)
         if qrs.size:
-            refractory = int(round(0.200 * fs_i))
+            refractory = int(round(0.200 * fs_i)) #應有幾個樣本
             keep = [qrs[0]]
             for k in range(1, len(qrs)):
                 if qrs[k] - keep[-1] >= refractory:
@@ -151,7 +152,7 @@ if __name__ == "__main__":
         # 6) 顯示/輸出
         print(f"[{i}/{len(files)}] {base:>20s} | fs≈{fs_est:.2f} Hz"
               f" (dt_mean={dt_stats['dt_ms_mean']:.3f} ms, std={dt_stats['dt_ms_std']:.3f} ms)"
-              f" | peaks={len(qrs)} | RESAMPLE_TO={RESAMPLE_TO}")
+              f" | peaks={len(qrs)} ")
 
         if SAVE_PEAKS:
             if qrs.size:
