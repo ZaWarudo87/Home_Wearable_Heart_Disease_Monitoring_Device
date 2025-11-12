@@ -436,6 +436,14 @@ class Pan_Tompkins_Plus_Plus():
 
         # 1) R-peak detection（用你現成的偵測器）
         peaks = np.asarray(self.rpeak_detection(sig, fs), dtype=int)
+        peaks = np.asarray(peaks, dtype=int)
+        if peaks.size:
+            refractory = int(0.200 * fs)
+            keep = [peaks[0]]
+            for k in range(1, len(peaks)):
+                if peaks[k] - keep[-1] >= refractory:
+                    keep.append(peaks[k])
+            peaks = np.asarray(keep, dtype=int)
         beats_count = int(peaks.size)
 
         # 2) Instantaneous HR from RR
