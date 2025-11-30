@@ -6,8 +6,30 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 import csv
+from scipy import signal
 
 from algos.pan_tompkins_plus_plus import Pan_Tompkins_Plus_Plus as RpeakDetection
+
+def filter_for_st(sig, fs): #for st slope hp 0.5HZ lp 35Hz
+
+    sig = np.asarray(sig, dtype=float)
+
+    # 1) High-pass 0.5 Hz
+    hp_cut = 0.5          # Hz
+    hp_N   = 3            # 3rd-order
+    Wn_hp  = hp_cut * 2.0 / fs
+    bhp, ahp = signal.butter(hp_N, Wn_hp, btype='highpass')
+    sig_hp = signal.filtfilt(bhp, ahp, sig)
+
+    # 2) Low-pass 35 Hz
+    lp_cut = 35.0         # or try 40 Hz 
+    lp_N   = 3
+    Wn_lp  = lp_cut * 2.0 / fs
+    blp, alp = signal.butter(lp_N, Wn_lp, btype='lowpass')
+    sig_bp = signal.filtfilt(blp, alp, sig_hp)
+
+    return sig_bp
+
 
 # ===== 可調參數 =====
 DRAW_EVERY   = 1            # 每隔幾筆畫一次圖（避免一堆視窗）
@@ -19,10 +41,7 @@ VALUE_COL     = "ecg_value" # CSV 欄名（ADC counts 或 mV）
 
 # 讀CSV
 def read_csv_one(path):
-    """
-    讀取一個 CSV（含表頭），欄位至少要有：timestamp, ecg_value
-    回傳：timestamps(np.array[s])、ecg(np.array[float])
-    """
+
     ts, val = [], [] #ts 放時間 val 放ECG value
     with open(path, "r", newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
@@ -60,10 +79,7 @@ def estimate_fs(timestamps):
     return float(fs), stats
 
 def linear_resample(ts, x, fs_target):
-    """
-    以線性插值把不均勻/近似均勻時間序列重採樣到 fs_target。
-    回傳：x_rs, fs_target, t_new
-    """
+
     t0, t1 = ts[0], ts[-1]
     n = int(np.floor((t1 - t0) * fs_target)) + 1
     if n <= 1:
@@ -167,31 +183,48 @@ if __name__ == "__main__":
                        header="sample_index,timestamp_s",
                        comments="")
             
-            features = det.compute_ecg_features(ecg, fs_i)
-            print(f" HR={features['HR']:.1f} bpm, "
-            f"ST_label={features['ST_Label']}, Oldpeak={features['Oldpeak']:.3f} mV")
-           # === 只取前 10 秒 ===
-            max_t = 2.0  # 秒
-            # 把時間軸換算成秒（避免直接看 sample index）
+            # === (A) 計算兩種版本的 feature ===
+            # 建議都用 ecg_use（跟 R-peak 偵測同一個訊號 & fs）
+            features = det.compute_ecg_features(ecg_use, fs_i)
+            features_stfilt = det.compute_ecg_features_stfilt(ecg_use, fs_i)   # ST 濾波版本
+
+            print("原濾波版本 (raw) :")
+            print(f"  HR={features['HR']:.1f} bpm, "
+                  f"ST_label={features['ST_Label']}, "
+                  f"Oldpeak={features['Oldpeak']:.3f} mV")
+
+            print("ST 濾波版本 (0.5–35 Hz) :")
+            print(f"  HR={features_stfilt['HR']:.1f} bpm, "
+                  f"ST_label={features_stfilt['ST_Label']}, "
+                  f"Oldpeak={features_stfilt['Oldpeak']:.3f} mV")
+
+            # === (B) 專門給 ST 用的濾波波形（用來畫圖比較） ===
+            ecg_stfilt_full = filter_for_st(ecg_use, fs_i)   # 跟 ecg_use 對齊
+           
+            # === 只取前 N 秒，看得比較清楚 ===
+            max_t = 10.0  # 秒（你剛才寫 2.0 但註解寫 10 秒，看你要哪一個）
             time_axis_sec = (ts_rs - ts_rs[0])
             mask = time_axis_sec <= max_t
-            ecg_show = ecg_use[mask]
-            t_show = time_axis_sec[mask]
+
+            ecg_show_raw    = ecg_use[mask]
+            ecg_show_stfilt = ecg_stfilt_full[mask]
+            t_show          = time_axis_sec[mask]
 
             plt.figure()
-            plt.plot(t_show, ecg_show, label="ECG (前 10 秒)")
+            # 原始波形
+            plt.plot(t_show, ecg_show_raw, label="ECG raw")
+            # ST 濾波後波形（0.5–35 Hz）
+            plt.plot(t_show, ecg_show_stfilt, label="ECG ST-filtered (0.5–35 Hz)", linewidth=2)
 
-            # 如果 R-peak 在這段範圍內，就畫出來
+            # 如果 R-peak 在這段範圍內，就畫出來（還是用原始 ecg_use 的 peak）
             if qrs.size:
-                # 先確保 peak index 沒越界
                 qrs_mask = qrs[(qrs >= 0) & (qrs < len(ecg_use))]
-                peak_times = time_axis_sec[qrs_mask]
+                peak_times  = time_axis_sec[qrs_mask]
                 peak_values = ecg_use[qrs_mask]
-                # 只畫前 10 秒內的 peaks
                 valid = (peak_times >= 0.0) & (peak_times <= max_t)
-                plt.plot(peak_times[valid], peak_values[valid], 'o', label="R peaks")
+                plt.plot(peak_times[valid], peak_values[valid], 'o', label="R peaks (raw)")
 
-                # === 標示每拍的 ST 段（R+60ms ~ R+80ms）===
+                # === 標示每拍的 ST 段（R+60ms ~ R+80ms），兩條波形都看得到 ===
                 st_s = int(round(0.06 * fs_i))  # 60 ms
                 st_e = int(round(0.08 * fs_i))  # 80 ms
 
@@ -199,24 +232,27 @@ if __name__ == "__main__":
                 for r in qrs_mask:
                     s_idx = r + st_s
                     e_idx = r + st_e
-                    # 邊界保護
                     if s_idx < 0 or e_idx >= len(ecg_use):
                         continue
 
                     t_s = time_axis_sec[s_idx]
                     t_e = time_axis_sec[e_idx]
 
-                    # 只標示在顯示窗內的部分
                     if t_e < 0.0 or t_s > max_t:
                         continue
 
-                    # 半透明色塊（顯示 ST 量測窗）
-                    plt.axvspan(max(t_s, 0.0), min(t_e, max_t), color='orange', alpha=0.3,
-                                label="ST 60–80 ms" if first_span else None)
+                    # 半透明色塊：ST 量測窗
+                    plt.axvspan(max(t_s, 0.0), min(t_e, max_t),
+                                alpha=0.2,
+                                label="ST 60–80 ms window" if first_span else None)
 
-                    # 在該區段畫一條水平線（該窗的平均值，幫助視覺對齊）
-                    y_mean = float(np.mean(ecg_use[s_idx:e_idx]))
-                    plt.plot([t_s, t_e], [y_mean, y_mean], lw=2, color='orange')
+                    # 在 ST 段畫水平線：可以選擇畫 raw 或 ST-filtered 的平均
+                    y_mean_raw    = float(np.mean(ecg_use[s_idx:e_idx]))
+                    y_mean_stfilt = float(np.mean(ecg_stfilt_full[s_idx:e_idx]))
+
+                    plt.plot([t_s, t_e], [y_mean_raw,    y_mean_raw],    linewidth=1, linestyle="--")
+                    plt.plot([t_s, t_e], [y_mean_stfilt, y_mean_stfilt], linewidth=2)
+
                     first_span = False
 
             title_suffix = f" (fs≈{fs_est:.2f} Hz" + ("" if not RESAMPLE_TO else f" -> {fs_i} Hz") + ")"
