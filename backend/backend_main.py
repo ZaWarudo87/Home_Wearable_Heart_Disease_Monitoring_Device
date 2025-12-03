@@ -4,6 +4,7 @@ import eventlet.wsgi
 eventlet.monkey_patch()
 
 import json
+import os
 import random
 import threading
 import time
@@ -14,6 +15,7 @@ from flask_cors import CORS
 from flask_sock import Sock
 from simple_websocket import Server
 
+import database
 import gemini
 import login
 import pseudo_data
@@ -21,6 +23,10 @@ import pseudo_data
 app = Flask(__name__)
 CORS(app) 
 sock = Sock(app)
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'data.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+database.init_db(app)
 
 # --- Frontend Server ---
 # @app.route('/', methods=['GET'])
@@ -68,15 +74,13 @@ def create_user_profile():
         if field not in data:
             abort(400, f'Missing required field: {field}')
     
-    user_data["profile_data"] = {
+    profile_data = {
         "sex": data["sex"],
         "age": data["age"],
         "chest_pain_type": data["chest_pain_type"],
-        "exercise_angina": data["exercise_angina"],
-        "created_at": datetime.now().isoformat()
+        "exercise_angina": data["exercise_angina"]
     }
-    user_data["profile_completed"] = True
-    return jsonify(pseudo_data.update_userdata(user_data["token"], user_data))
+    return jsonify(database.update_userdata(user_data["id"], profile_data))
 
 @app.route('/api/v1/user/health-data', methods=['POST'])
 def submit_health_data():
@@ -91,15 +95,12 @@ def submit_health_data():
         if field not in data:
             abort(400, f'Missing required field: {field}')
     
-    health_record = {
+    result = database.add_health_record(user_data["id"], {
         "resting_bp": data["resting_bp"],
         "cholesterol": data["cholesterol"],
-        "fasting_bs": data["fasting_bs"],
-        "timestamp": datetime.now().isoformat()
-    }
-    
-    user_data["health_data"].append(health_record)
-    return jsonify(pseudo_data.update_userdata(user_data["token"], user_data))
+        "fasting_bs": data["fasting_bs"]
+    })
+    return jsonify(result)
 
 @app.route('/api/v1/user/health-data', methods=['GET'])
 def get_health_data():
@@ -107,7 +108,7 @@ def get_health_data():
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
-    return jsonify({"health_data": user_data["health_data"]})
+    return jsonify(database.get_health_data(user_data["id"]))
 
 # --- Health Data API ---
 @app.route('/api/v1/health/summary', methods=['GET'])
@@ -116,7 +117,7 @@ def get_health_summary():
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
-    return jsonify(pseudo_data.get_health_summary(user_data))
+    return jsonify(database.get_health_summary(user_data["id"]))
 
 @app.route('/api/v1/health/risk', methods=['GET'])
 def get_health_risk():
@@ -136,11 +137,11 @@ def get_chart_bp():
     
     # To prevent others play our API
     if period == '7d':
-        data = pseudo_data.get_chart_data(user_data["token"], 7, 'bp')
+        data = database.get_chart_data(user_data["id"], 7, 'bp')
         data["labels"] = [(datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
         data["labels"].reverse()
     else: # 30d
-        data = pseudo_data.get_chart_data(user_data["token"], 30, 'bp')
+        data = database.get_chart_data(user_data["id"], 30, 'bp')
         data["labels"] = [(datetime.now() - timedelta(days=i)).strftime('%m-%d') for i in range(30)]
         data["labels"].reverse()
     return jsonify(data)
@@ -155,21 +156,20 @@ def get_chart_hr():
     period = request.args.get('period')
     
     if period == '1h':
-        data = pseudo_data.get_chart_data(user_data["token"], 60, 'hr')
+        data = database.get_chart_data(user_data["id"], 60, 'hr')
     elif period == '6h':
-        data = pseudo_data.get_chart_data(user_data["token"], 360, 'hr')
-    # 30min interval
+        data = database.get_chart_data(user_data["id"], 360, 'hr')
     elif period == '24h':
-        data = pseudo_data.get_chart_data(user_data["token"], 48, 'hr')
+        data = database.get_chart_data(user_data["id"], 48, 'hr')
     else: # 7d
-        data = pseudo_data.get_chart_data(user_data["token"], 336, 'hr')
+        data = database.get_chart_data(user_data["id"], 336, 'hr')
     return jsonify(data)
 
 # --- Real-time ECG WebSocket ---
 def send_ecg_data(ws: Server):
     try:
         while True:
-            points_chunk = pseudo_data.get_points_chunk()
+            points_chunk = pseudo_data.get_points_chunk()  # Keep using pseudo_data for ECG simulation
             message = json.dumps({"points": points_chunk})
             ws.send(message)
             time.sleep(0.16)

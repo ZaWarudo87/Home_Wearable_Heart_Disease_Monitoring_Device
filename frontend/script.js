@@ -21,7 +21,7 @@ const MAX_ECG_POINTS = 300;
 const ECG_UPDATE_MS = 40;
 
 // --- API Base URL ---
-const API_BASE_URL = "https://rico-provider-clearing-agents.trycloudflare.com";
+const API_BASE_URL = "https://pottery-consciousness-handy-jumping.trycloudflare.com";
 
 // --- API Helper ---
 
@@ -126,7 +126,7 @@ async function handleRegistrationSubmit(event) {
         sex: document.getElementById('sex').value,
         age: parseInt(document.getElementById('age').value),
         chest_pain_type: document.getElementById('chest-pain-type').value,
-        exercise_angina: document.getElementById('exercise-angina').value
+        exercise_angina: document.getElementById('exercise-angina').value === 'Y'
     };
     
     try {

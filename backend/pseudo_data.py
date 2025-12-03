@@ -39,7 +39,10 @@ def login(google_token: str) -> dict:
     
     if is_new_user:
         # 創建新用戶記錄
+        # id starts from 1 and increments
+        new_id = len(user_database) + 1
         user_database[user_token] = {
+            "id": new_id,
             "token": user_token,
             "name": "王小明 (來自後端)",
             "profile_completed": False,
