@@ -1,5 +1,7 @@
-from datetime import datetime
+from bisect import bisect_left
+from datetime import datetime, timedelta
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import or_
 import random
 
 db = SQLAlchemy()
@@ -20,7 +22,6 @@ class User(db.Model):
     # Relationships
     profile = db.relationship('UserProfile', backref='user', uselist=False, cascade='all, delete-orphan')
     health_records = db.relationship('HealthRecord', backref='user', lazy='dynamic', cascade='all, delete-orphan')
-    bp_records = db.relationship('BPRecord', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     hr_records = db.relationship('HRRecord', backref='user', lazy='dynamic', cascade='all, delete-orphan')
 
 
@@ -45,16 +46,6 @@ class HealthRecord(db.Model):
     resting_bp = db.Column(db.Integer, nullable=False)
     cholesterol = db.Column(db.Integer, nullable=False)
     fasting_bs = db.Column(db.Boolean, nullable=False)  # True if > 120 mg/dl
-    timestamp = db.Column(db.DateTime, default=datetime.now)
-
-
-class BPRecord(db.Model):
-    __tablename__ = 'bp_records'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    systolic = db.Column(db.Integer, nullable=False)  # 收縮壓
-    diastolic = db.Column(db.Integer, nullable=False)  # 舒張壓
     timestamp = db.Column(db.DateTime, default=datetime.now)
 
 
@@ -129,26 +120,36 @@ def update_userdata(user_id: int, data: dict) -> dict:
 
 # ==================== Health Record Functions ====================
 
-def _get_health_records_list(user: User) -> list:
-    records = user.health_records.order_by(HealthRecord.timestamp.desc()).all()
-    return [{
-        "resting_bp": r.resting_bp,
-        "cholesterol": r.cholesterol,
-        "fasting_bs": r.fasting_bs,
-        "timestamp": r.timestamp.isoformat()
-    } for r in records]
-
-
 def add_health_record(user_id: int, data: dict) -> dict:
     user = User.query.get(user_id)
     if not user:
         return {"error": "User not found"}
     
+    # Delete too old records OR records from today (keep only latest per day)
+    cutoff_time = datetime.now() - timedelta(days=30)
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    HealthRecord.query.filter(
+        HealthRecord.user_id == user_id,
+        or_(
+            HealthRecord.timestamp < cutoff_time,
+            HealthRecord.timestamp >= today_start  # Delete today's old records
+        )
+    ).delete()
+
+
+    
+    # Convert fasting_bs to boolean (True if > 120 mg/dl)
+    fasting_bs_value = data["fasting_bs"]
+    if isinstance(fasting_bs_value, bool):
+        fasting_bs_bool = fasting_bs_value
+    else:
+        fasting_bs_bool = int(fasting_bs_value) > 120
+    
     record = HealthRecord(
         user_id=user_id,
         resting_bp=data["resting_bp"],
         cholesterol=data["cholesterol"],
-        fasting_bs=data["fasting_bs"]
+        fasting_bs=fasting_bs_bool
     )
     db.session.add(record)
     db.session.commit()
@@ -160,23 +161,27 @@ def get_health_data(user_id: int) -> dict:
     user = User.query.get(user_id)
     if not user:
         return {"error": "User not found"}
-    return {"health_data": _get_health_records_list(user)}
+    
+    records = user.health_records.order_by(HealthRecord.timestamp.desc()).all()
+    health_data = [{
+        "resting_bp": r.resting_bp,
+        "cholesterol": r.cholesterol,
+        "fasting_bs": r.fasting_bs,
+        "timestamp": r.timestamp.isoformat()
+    } for r in records]
+    return {"health_data": health_data}
 
 
 # ==================== Chart Data Functions ====================
 
-def add_bp_record(user_id: int, systolic: int, diastolic: int) -> dict:
-    record = BPRecord(
-        user_id=user_id,
-        systolic=systolic,
-        diastolic=diastolic
-    )
-    db.session.add(record)
-    db.session.commit()
-    return {"message": "BP record added successfully"}
-
-
 def add_hr_record(user_id: int, heart_rate: int) -> dict:
+    # Delete too old records
+    cutoff_time = datetime.now() - timedelta(days=7)
+    HRRecord.query.filter(
+        HRRecord.user_id == user_id,
+        HRRecord.timestamp < cutoff_time
+    ).delete()
+
     record = HRRecord(
         user_id=user_id,
         heart_rate=heart_rate
@@ -198,17 +203,35 @@ def get_chart_data(user_id: int, points: int, data_type: str = 'hr') -> dict:
             records.reverse()
             labels = [r.timestamp.strftime('%H:%M') for r in records]
             values = [r.heart_rate for r in records]
+            if points >= 43200:
+                labels = [(datetime.now() - timedelta(minutes=i)).strftime('%Y-%m-%d %H:%M') for i in range(points)][::-1]
+                new_values = []
+                j = 0
+                for i in values:
+                    temp = 0
+                    if i:
+                        temp += i
+                    j += 1
+                    if j == 30:
+                        new_values.append(temp // 30 if temp != 0 else None)
+                        j = 0
+                values = new_values
         else:
             return {"labels": [], "values": []}
     else:  # bp
-        records = BPRecord.query.filter_by(user_id=user_id)\
-            .order_by(BPRecord.timestamp.desc())\
+        records = HealthRecord.query.filter_by(user_id=user_id)\
+            .order_by(HealthRecord.timestamp.desc())\
             .limit(points).all()
         
         if records:
             records.reverse()
-            labels = [r.timestamp.strftime('%H:%M') for r in records]
-            values = [r.systolic for r in records]  # Use systolic for chart
+            labels = [r.timestamp.strftime('%Y-%m-%d') for r in records]
+            values = [r.resting_bp for r in records]
+            for t in [(datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(points)][::-1]:
+                if t not in labels:
+                    idx = bisect_left(labels, t)
+                    labels.insert(idx, t)
+                    values.insert(idx, None)
         else:
             return {"labels": [], "values": []}
     return {"labels": labels, "values": values}

@@ -8,7 +8,6 @@ import os
 import random
 import threading
 import time
-from datetime import datetime, timedelta
 
 from flask import Flask, request, jsonify, abort, send_from_directory
 from flask_cors import CORS
@@ -145,12 +144,8 @@ def get_chart_bp():
     # To prevent others play our API
     if period == '7d':
         data = database.get_chart_data(user_data["id"], 7, 'bp')
-        data["labels"] = [(datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
-        data["labels"].reverse()
     else: # 30d
         data = database.get_chart_data(user_data["id"], 30, 'bp')
-        data["labels"] = [(datetime.now() - timedelta(days=i)).strftime('%m-%d') for i in range(30)]
-        data["labels"].reverse()
     return jsonify(data)
 
 @app.route('/api/v1/charts/hr', methods=['GET'])
@@ -167,9 +162,9 @@ def get_chart_hr():
     elif period == '6h':
         data = database.get_chart_data(user_data["id"], 360, 'hr')
     elif period == '24h':
-        data = database.get_chart_data(user_data["id"], 48, 'hr')
+        data = database.get_chart_data(user_data["id"], 43200, 'hr')
     else: # 7d
-        data = database.get_chart_data(user_data["id"], 336, 'hr')
+        data = database.get_chart_data(user_data["id"], 302400, 'hr')
     return jsonify(data)
 
 # --- Real-time ECG WebSocket ---
