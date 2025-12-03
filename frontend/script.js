@@ -179,7 +179,6 @@ async function initializeApp(user) {
     document.getElementById('logout-button').addEventListener('click', handleSignOut);
 
     await fetchHealthSummary();
-    connectWebSocket();
     
     // 預設選中 'overview'
     document.getElementById('tab-overview').classList.add('bg-indigo-600', 'text-white');
@@ -209,6 +208,12 @@ async function fetchHealthSummary() {
 function switchTab(tabId) {
     // 停止所有動畫
     stopEcgAnimation();
+    
+    // 如果切換到非 ECG 頁面，關閉 WebSocket
+    if (tabId !== 'ecg' && ecgSocket) {
+        ecgSocket.close();
+        ecgSocket = null;
+    }
 
     // 隱藏所有分頁
     document.querySelectorAll('.tab-content').forEach(page => {
@@ -265,7 +270,8 @@ function switchTab(tabId) {
             }
             break;
         case 'ecg':
-            if (!charts.ecgChart) {
+            if (!charts.ecgChart) { //gohere
+                connectWebSocket();
                 initializeECGChart();
             } else {
                 charts.ecgChart.resize();

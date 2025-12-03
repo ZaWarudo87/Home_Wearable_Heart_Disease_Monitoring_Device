@@ -170,8 +170,7 @@ def send_ecg_data(ws: Server):
     try:
         while True:
             points_chunk = pseudo_data.get_points_chunk()  # Keep using pseudo_data for ECG simulation
-            message = json.dumps({"points": points_chunk})
-            ws.send(message)
+            ws.send(json.dumps({"points": points_chunk}))
             time.sleep(0.16)
     except Exception as e:
         print(f"WebSocket send error or client disconnected: {e}")
