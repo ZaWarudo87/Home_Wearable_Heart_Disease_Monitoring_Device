@@ -64,25 +64,17 @@ Output Example
 result :
   MAX HR=200.0 bpm, ST_label=Up, Oldpeak=-0.253 mV
 
-![ECG Example](assets/Figure_1.png)
+![ECG Example](Pan-Tompkins-Plus-Plus/assets/Figure_1.png)
 
 Raw ECG waveform
 
 
 Key Features
-R-Peak Detection
+Robust R-Peak Detection: Optimized for noisy wearable environments using Pan-Tompkins++.
 
-Designed for mobile/wearable sensors
+ST-Segment Analysis: Real-time calculation of ST elevation/depression and slope (Up/Flat/Down).
 
-ST-Segment Analysis
+AI Integration: Seamlessly connects signal processing results with a trained ML model for immediate risk assessment.
 
-ST elevation/depression
-
-ST slope calculation per beat
-
-Beat-to-Beat Features
-
-RR interval
-
-Max HR
+Batch Processing: Automatically processes multiple recordings and archives them.
 
