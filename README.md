@@ -1,6 +1,7 @@
-**Home_Wearable_Heart_Disease_Monitoring_Device**
+#Home_Wearable_Heart_Disease_Monitoring_Device
 
 2025 NYCU EE Project
+
 Real-Time ECG Processing Pipeline Based on Pan-Tompkins++
 
 Overview
@@ -42,14 +43,13 @@ If you use this algorithm in academic work, please cite the original authors:
 }
 ```
 
-**Usage**
-
-1. Install Dependencies
+##**Usage**
+###1. Install Dependencies
 ```bash
 pip install numpy scipy matplotlib peakutils
 ```
 
-2. Prepare ECG Data
+###2. Prepare ECG Data
 
 Place your ECG CSV files into:
 ```bash
@@ -62,13 +62,13 @@ Move processed or unwanted files into:
 ECG_DATA/used/
 ```
 
-3. Run Batch Processing (R-peak detection + plots)
+###3. Run Batch Processing (R-peak detection + plots)
 ```bash
 cd Pan-Tompkins-Plus-Plus
 python test.py
 ```
 
-**Output Example**
+###**Output Example**
 Example Terminal Output
 ```bash
 [1/4] exercise_ecg | fs≈160.10 Hz (dt_mean=6.249 ms, std=2.664 ms) | peaks=63
@@ -80,17 +80,17 @@ ECG Example
 
 ![ECG Example](Pan-Tompkins-Plus-Plus/assets/Figure_1.png)
 
-**Key Features**
+##**Key Features**
 
-**Robust R-Peak Detection**
+###**Robust R-Peak Detection**
 
 Optimized for noisy wearable environments using Pan-Tompkins++.
 
-**ST-Segment Analysis**
+###**ST-Segment Analysis**
 
 Real-time calculation of ST elevation/depression and slope (Up / Flat / Down).
 
-**AI Integration**
+###**AI Integration**
 
 Connects signal-processing results with a trained ML model for immediate risk assessment.
 
