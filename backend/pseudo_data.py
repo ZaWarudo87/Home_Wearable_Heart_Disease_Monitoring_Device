@@ -10,12 +10,13 @@ ONE_HEARTBEAT = [
 ]
 
 def get_chart_data(token: str, points: int, type: str ='hr') -> dict:
-    labels = [(datetime.now() - timedelta(minutes=i)).strftime('%H:%M') for i in range(points)]
-    labels.reverse()
     if type == 'hr':
+        labels = [(datetime.now() - timedelta(minutes=i)).strftime('%H:%M') for i in range(points)]
         values = [random.randint(60, 90) for _ in range(points)]
     else:
+        labels = [(datetime.now() - timedelta(minutes=i)).strftime('%Y-%m-%d') for i in range(points)]
         values = [random.randint(110, 130) for _ in range(points)]
+    labels.reverse()
     return {"labels": labels, "values": values}
 
 def check_auth(request: request) -> dict:
@@ -94,6 +95,9 @@ def get_points_chunk(index: int = 0, chunk_size: int = 20) -> list:
         points_chunk.append(ONE_HEARTBEAT[index] + noise)
         index = (index + 1) % len(ONE_HEARTBEAT)
     return points_chunk
+
+def get_heart_rate(ecg_points: list) -> int:
+    return random.randint(65, 70)
 
 def check_auth_ws(token: str) -> bool:
     return token == VALID_API_TOKEN

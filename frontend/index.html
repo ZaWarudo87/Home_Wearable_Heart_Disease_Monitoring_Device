@@ -211,7 +211,10 @@
       </div>
      </div>
      <div class="bg-white rounded-xl shadow-lg p-4 mb-4">
-      <h3 class="text-lg font-semibold text-gray-900 mb-4">即時ECG波形圖</h3>
+      <div class="flex justify-between items-center">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">即時ECG波形圖</h3>
+        <span class="text-sm font-medium text-red-600">心率: <span id="current-heart-rate"></span> bpm</span>
+      </div>
       <div class="chart-container relative overflow-hidden">
        <canvas id="ecgChart"></canvas>
       </div>

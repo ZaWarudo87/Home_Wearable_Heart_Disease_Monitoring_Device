@@ -473,6 +473,9 @@ function connectWebSocket() {
             if (data.points && Array.isArray(data.points)) {
                 ecgDataQueue.push(...data.points);
             }
+            if(data.heart_rate){
+                document.getElementById('current-heart-rate').textContent = data.heart_rate;
+            }
         } catch (e) {
             console.error('Error parsing ECG data:', e);
         }

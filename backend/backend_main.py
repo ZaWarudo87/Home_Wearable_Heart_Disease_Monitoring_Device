@@ -14,6 +14,7 @@ from flask_cors import CORS
 from flask_sock import Sock
 from simple_websocket import Server
 
+import calc
 import database
 import gemini
 import login
@@ -143,9 +144,9 @@ def get_chart_bp():
     
     # To prevent others play our API
     if period == '7d':
-        data = database.get_chart_data(user_data["id"], 7, 'bp')
+        data = pseudo_data.get_chart_data(user_data["id"], 7, 'bp') #database
     else: # 30d
-        data = database.get_chart_data(user_data["id"], 30, 'bp')
+        data = pseudo_data.get_chart_data(user_data["id"], 30, 'bp') #database
     return jsonify(data)
 
 @app.route('/api/v1/charts/hr', methods=['GET'])
@@ -158,13 +159,13 @@ def get_chart_hr():
     period = request.args.get('period')
     
     if period == '1h':
-        data = database.get_chart_data(user_data["id"], 60, 'hr')
+        data = pseudo_data.get_chart_data(user_data["id"], 60, 'hr') #database
     elif period == '6h':
-        data = database.get_chart_data(user_data["id"], 360, 'hr')
+        data = pseudo_data.get_chart_data(user_data["id"], 360, 'hr') #database
     elif period == '24h':
-        data = database.get_chart_data(user_data["id"], 43200, 'hr')
+        data = pseudo_data.get_chart_data(user_data["id"], 43200, 'hr') #database
     else: # 7d
-        data = database.get_chart_data(user_data["id"], 302400, 'hr')
+        data = pseudo_data.get_chart_data(user_data["id"], 302400, 'hr') #database
     return jsonify(data)
 
 # --- Real-time ECG WebSocket ---
@@ -172,7 +173,8 @@ def send_ecg_data(ws: Server):
     try:
         while True:
             points_chunk = pseudo_data.get_points_chunk()  # Keep using pseudo_data for ECG simulation
-            ws.send(json.dumps({"points": points_chunk}))
+            heart_rate = pseudo_data.get_heart_rate(points_chunk)
+            ws.send(json.dumps({"points": points_chunk, "heart_rate": heart_rate}))
             time.sleep(0.16)
     except Exception as e:
         print(f"WebSocket send error or client disconnected: {e}")
