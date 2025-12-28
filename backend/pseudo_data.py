@@ -11,7 +11,11 @@ ONE_HEARTBEAT = [
 
 def get_chart_data(token: str, points: int, type: str ='hr') -> dict:
     if type == 'hr':
-        labels = [(datetime.now() - timedelta(minutes=i)).strftime('%H:%M') for i in range(points)]
+        if points > 360:
+            points //= 1800
+            labels = [(datetime.now() - timedelta(minutes=i * 1800)).strftime('%H:%M') for i in range(points)]
+        else:
+            labels = [(datetime.now() - timedelta(minutes=i)).strftime('%H:%M') for i in range(points)]
         values = [random.randint(60, 90) for _ in range(points)]
     else:
         labels = [(datetime.now() - timedelta(minutes=i)).strftime('%Y-%m-%d') for i in range(points)]

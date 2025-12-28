@@ -21,7 +21,7 @@ const MAX_ECG_POINTS = 300;
 const ECG_UPDATE_MS = 40;
 
 // --- API Base URL ---
-const API_BASE_URL = "https://derived-articles-doug-adoption.trycloudflare.com";
+const API_BASE_URL = "https://zoo-immigrants-pct-grand.trycloudflare.com";
 
 // --- API Helper ---
 
