@@ -1,215 +1,167 @@
-# save_model.py
-
+# -*- coding: utf-8 -*-
+from pathlib import Path
+import json
 import pandas as pd
-import numpy as np
-from scipy import stats
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.impute import KNNImputer
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from catboost import CatBoostClassifier
-import pickle
-import warnings
+import joblib
 
-# 關閉警告
-warnings.filterwarnings("ignore")
 
-# ==============================================================================
-#  工具函數 (僅供訓練階段使用)
-# ==============================================================================
+def unwrap_predictor(obj):
+    if hasattr(obj, "predict"):
+        return obj
+    if isinstance(obj, dict):
+        preferred_keys = ["model", "pipeline", "estimator", "clf", "classifier", "best_model"]
+        for k in preferred_keys:
+            if k in obj and hasattr(obj[k], "predict"):
+                return obj[k]
+        for _, v in obj.items():
+            if hasattr(v, "predict"):
+                return v
+    raise TypeError(f"找不到含 predict() 的模型，載入物件型別={type(obj)}")
 
-def train_preprocess_pipeline(df):
+
+def build_onehot_row(raw: dict) -> dict:
     """
-    訓練專用的預處理：
-    1. 回傳處理好的 df
-    2. 回傳訓練好的 scaler 和 imputer 物件 (以便存檔)
+    將原始輸入（含字串類別）轉成 one-hot + 數值欄位的 row(dict)。
+    這裡的 one-hot 欄位命名，依照你 error 顯示的格式：
+      ChestPainType_XXX, ExerciseAngina_Y, ST_Slope_Up/Flat/Down, Sex_M
     """
-    df = df.copy()
-    col_to_scale = ['Age', 'MaxHR', 'Oldpeak']  # 數值欄位
-    
-    # 1. 建立並訓練 Imputer (這裡簡化，先針對數值做)
-    # 若資料有缺失，KNNImputer 需 fit 在所有欄位或特定欄位
-    # 這裡假設針對數值欄位做處理
-    imputer = KNNImputer()
-    # 注意：KNNImputer 會回傳 numpy array，要轉回 DataFrame
-    df[col_to_scale] = imputer.fit_transform(df[col_to_scale])
-    
-    # 2. 處理異常值 (僅在訓練時做，預測時通常不做截斷，除非極端不合理)
-    for i in col_to_scale:
-        z_scores = stats.zscore(df[i])
-        lower = df[i][z_scores > -3].min()
-        upper = df[i][z_scores < 3].max()
-        df[i] = df[i].clip(lower, upper)
+    row = {}
 
-    # 3. 建立並訓練 Scaler
-    scaler = MinMaxScaler()
-    df[col_to_scale] = scaler.fit_transform(df[col_to_scale])
-    
-    return df, imputer, scaler
+    # numeric
+    row["Age"] = float(raw["Age"])
+    row["MaxHR"] = float(raw["MaxHR"])
+    row["Oldpeak"] = float(raw["Oldpeak"])
 
-# ==============================================================================
-#  通用預測器類別
-# ==============================================================================
+    # Sex -> Sex_M (F 就是 0)
+    sex = str(raw["Sex"]).strip().upper()
+    row["Sex_M"] = 1.0 if sex == "M" else 0.0
 
-class HeartDiseasePredictor:
-    def __init__(self):
-        self.model = None
-        self.model_name = None
-        self.feature_columns = None
-        self.imputer = None
-        self.scaler = None
-    
-    def load_model(self, filepath):
-        with open(filepath, 'rb') as f:
-            data = pickle.load(f)
-        self.model = data['model']
-        self.model_name = data['model_name']
-        self.feature_columns = data['feature_columns']
-        # 載入訓練時的處理器
-        self.imputer = data.get('imputer') 
-        self.scaler = data.get('scaler')
-        return self
-    
-    def _preprocess_new_data(self, df):
-        """預測時專用的預處理 (使用已訓練的 scaler/imputer)"""
-        df = df.copy()
-        
-        # 1. One-Hot Encoding
-        cat_col = ['Sex', 'ST_Slope', 'ChestPainType', 'ExerciseAngina']
-        # 確保現有資料有這些欄位才做 encoding
-        existing_cat = [c for c in cat_col if c in df.columns]
-        if existing_cat:
-            df = pd.get_dummies(data=df, columns=existing_cat, drop_first=True)
-            
-        # 2. 補齊缺失的 One-Hot 欄位 (關鍵步驟)
-        if self.feature_columns:
-            for col in self.feature_columns:
-                if col not in df.columns:
-                    df[col] = 0
-            # 確保欄位順序一致
-            df = df[self.feature_columns]
-            
-        # 3. 數值處理 (使用訓練好的 Imputer 和 Scaler)
-        num_cols = ['Age', 'MaxHR', 'Oldpeak']
-        
-        # 注意：這裡使用 transform 而不是 fit_transform
-        if self.imputer:
-            df[num_cols] = self.imputer.transform(df[num_cols])
-            
-        if self.scaler:
-            df[num_cols] = self.scaler.transform(df[num_cols])
-            
-        return df
-    
-    def predict(self, data):
-        if self.model is None: raise ValueError("請先載入模型")
-        if isinstance(data, dict): df = pd.DataFrame([data])
-        else: df = data.copy()
-        
-        df_processed = self._preprocess_new_data(df)
-        return self.model.predict(df_processed)
+    # ChestPainType -> one-hot
+    cpt = str(raw["ChestPainType"]).strip().upper()
+    for k in ["ATA", "NAP", "TA", "ASY"]:
+        row[f"ChestPainType_{k}"] = 1.0 if cpt == k else 0.0
 
-    def predict_detail(self, data):
-        """回傳詳細預測資訊"""
-        if self.model is None: raise ValueError("請先載入模型")
-        if isinstance(data, dict): df = pd.DataFrame([data])
-        else: df = data.copy()
-            
-        df_processed = self._preprocess_new_data(df)
-        pred = self.model.predict(df_processed)[0]
-        prob = self.model.predict_proba(df_processed)[0][1] # 取出患病機率
-        
-        return {
-            'model': self.model_name,
-            'prediction': int(pred),
-            'probability': float(prob),
-            'risk_level': '高風險' if pred == 1 else '低風險'
-        }
-    def predict_detail(self, data):
-        """回傳詳細預測資訊"""
-        if self.model is None: raise ValueError("請先載入模型")
-        if isinstance(data, dict): df = pd.DataFrame([data])
-        else: df = data.copy()
-            
-        df_processed = self._preprocess_new_data(df)
-        pred = self.model.predict(df_processed)[0]
-        prob = self.model.predict_proba(df_processed)[0][1] 
-        
-        return {
-            'model': self.model_name,
-            'prediction': int(pred),
-            'probability': float(prob),
-            # 補上這行：
-            'risk_percentage': f"{prob:.1%}", 
-            'risk_level': '高風險' if pred == 1 else '低風險'
-        }
-    # ... (放在 predict 函式下方) ...
+    # ExerciseAngina -> ExerciseAngina_Y
+    ea = str(raw["ExerciseAngina"]).strip().upper()
+    row["ExerciseAngina_Y"] = 1.0 if ea == "Y" else 0.0
 
-    def predict_proba(self, data):
-        """
-        新增這個函式：讓外部可以直接取得預測機率 (0~1)
-        """
-        if self.model is None: raise ValueError("請先載入模型")
-        if isinstance(data, dict): df = pd.DataFrame([data])
-        else: df = data.copy()
-        
-        df_processed = self._preprocess_new_data(df)
-        
-        # 回傳「患病 (Class 1)」的機率
-        # [:, 1] 代表取出所有樣本的第 2 個欄位 (即 label=1 的機率)
-        return self.model.predict_proba(df_processed)[:, 1]
+    # ST_Slope -> one-hot
+    st = str(raw["ST_Slope"]).strip().capitalize()  # Up/Flat/Down
+    for k in ["Up", "Flat", "Down"]:
+        row[f"ST_Slope_{k}"] = 1.0 if st == k else 0.0
 
-    # ... (下面接著 predict_detail) ...
+    return row
 
-# ==============================================================================
-#  主程式：訓練並存檔
-# ==============================================================================
+
+def align_to_feature_names(onehot_row: dict, feature_names) -> pd.DataFrame:
+    """
+    對齊到模型訓練時的 feature_names：
+      - 缺的補 0
+      - 多的丟掉
+      - 順序照 feature_names
+    """
+    data = {}
+    for fn in feature_names:
+        data[fn] = onehot_row.get(fn, 0.0)
+    return pd.DataFrame([data], columns=list(feature_names))
+
+
+def safe_predict(model, X: pd.DataFrame):
+    pred = model.predict(X)
+    pred_label = pred[0]
+
+    prob_pos = None
+    if hasattr(model, "predict_proba"):
+        proba = model.predict_proba(X)[0]
+        prob_pos = float(proba[1]) if len(proba) >= 2 else float(proba[0])
+
+    return pred_label, prob_pos
+
+
+def majority_vote(labels):
+    from collections import Counter
+    cnt = Counter(labels)
+    return cnt.most_common(1)[0][0] if labels else None
+
+
+def main():
+    base_dir = Path(__file__).resolve().parent
+    input_csv = base_dir / "results_csv" / "model_input_features.csv"
+
+    model_dir = base_dir / "model"
+    model_paths = {
+        "catboost_best": model_dir / "catboost_best.pkl",
+        "gradient_boosting_best": model_dir / "gradient_boosting_best.pkl",
+        "random_forest_best": model_dir / "random_forest_best.pkl",
+    }
+
+    out_dir = base_dir / "results_csv"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    out_csv = out_dir / "predictions_models.csv"
+    out_json = out_dir / "prediction_ensemble.json"
+
+    if not input_csv.exists():
+        raise FileNotFoundError(f"找不到 model input：{input_csv}")
+
+    raw_df = pd.read_csv(input_csv)
+    if raw_df.empty or len(raw_df) != 1:
+        raise ValueError("model_input_features.csv 必須且只能有 1 row")
+
+    raw = raw_df.iloc[0].to_dict()
+
+    # 先把 raw 轉成 one-hot row
+    onehot_row = build_onehot_row(raw)
+
+    rows = []
+    labels = []
+    probs = []
+
+    for name, mp in model_paths.items():
+        try:
+            raw_obj = joblib.load(mp)
+            model = unwrap_predictor(raw_obj)
+
+            # 取得模型期待的欄位（sklearn 通常有 feature_names_in_）
+            if hasattr(model, "feature_names_in_"):
+                feature_names = model.feature_names_in_
+                X = align_to_feature_names(onehot_row, feature_names)
+            else:
+                # 若模型沒有提供 feature_names_in_，就先用 onehot 直接丟（可能仍會失敗）
+                X = pd.DataFrame([onehot_row])
+
+            pred_label, prob_pos = safe_predict(model, X)
+
+            rows.append({"model": name, "pred_label": pred_label, "prob_pos": prob_pos})
+            labels.append(pred_label)
+            if prob_pos is not None:
+                probs.append(prob_pos)
+
+        except Exception as e:
+            rows.append({"model": name, "pred_label": None, "prob_pos": None, "error": str(e)})
+
+    df_out = pd.DataFrame(rows)
+    df_out.to_csv(out_csv, index=False, encoding="utf-8-sig")
+
+    final_label = majority_vote([r["pred_label"] for r in rows if r.get("pred_label") is not None])
+    final_prob = float(sum(probs) / len(probs)) if probs else None
+
+    payload = {
+        "input_raw": raw,
+        "input_onehot": onehot_row,
+        "per_model": rows,
+        "ensemble": {"final_label_majority": final_label, "final_prob_mean": final_prob}
+    }
+
+    with open(out_json, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    print("[DONE] Predictions finished")
+    print(" predictions_models.csv:", out_csv)
+    print(" prediction_ensemble.json:", out_json)
+    print(" ensemble final_label =", final_label, "| final_prob =", final_prob)
+    print(df_out.to_string(index=False))
+
 
 if __name__ == "__main__":
-    try:
-        # 1. 讀取與初步整理
-        df_train = pd.read_csv("heart_train.csv")
-        selected_features = ['Age', 'Sex','ChestPainType', 'MaxHR', 'ExerciseAngina' ,'Oldpeak', 'ST_Slope','HeartDisease']
-        df_train = df_train[selected_features].copy()
-        
-        # One-Hot Encoding (先做，因為這會改變欄位結構)
-        cat_col = ['Sex', 'ST_Slope', 'ChestPainType', 'ExerciseAngina']
-        df_train_encoded = pd.get_dummies(data=df_train, columns=cat_col, drop_first=True)
-        
-        # 2. 執行預處理 pipeline 並取得訓練好的 Scaler/Imputer
-        df_processed, imputer_trained, scaler_trained = train_preprocess_pipeline(df_train_encoded)
-
-        X = df_processed.drop(['HeartDisease'], axis=1)
-        y = df_processed['HeartDisease']
-        feature_columns = X.columns.tolist() # 記住最終特徵欄位名稱
-
-        # 3. 定義模型
-        models_config = [
-            {'name': 'CatBoost', 'model': CatBoostClassifier(verbose=False, random_state=369), 'file': 'catboost_best.pkl'},
-            {'name': 'Gradient Boosting', 'model': GradientBoostingClassifier(random_state=369), 'file': 'gradient_boosting_best.pkl'},
-            {'name': 'Random Forest', 'model': RandomForestClassifier(random_state=369), 'file': 'random_forest_best.pkl'}
-        ]
-
-        print("開始訓練模型...")
-        for config in models_config:
-            model = config['model']
-            model.fit(X, y)
-            
-            # 4. 存檔：把 模型 + 特徵欄位 + 預處理器 全部包在一起
-            save_packet = {
-                'model': model,
-                'model_name': config['name'],
-                'feature_columns': feature_columns,
-                'imputer': imputer_trained, # 存入訓練好的補值器
-                'scaler': scaler_trained    # 存入訓練好的縮放器
-            }
-            
-            with open(config['file'], 'wb') as f:
-                pickle.dump(save_packet, f)
-            print(f"已儲存: {config['file']}")
-
-        print("\n所有模型已正確儲存（包含預處理邏輯）。")
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f"發生錯誤: {e}")
+    main()

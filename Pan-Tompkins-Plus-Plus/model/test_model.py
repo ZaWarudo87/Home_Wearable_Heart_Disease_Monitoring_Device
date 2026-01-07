@@ -57,7 +57,7 @@ for chunk in ecg_chunks:
     data['ST_Slope'] = chunk['ST_Slope']
     
     # 3. 強制覆寫 Oldpeak 為 0.012 (依照你的要求)
-    data['Oldpeak'] = 0.012 
+    data['Oldpeak'] = -0.09 
     
     # 4. 進行預測
     pred_result = predictor.predict_detail(data)

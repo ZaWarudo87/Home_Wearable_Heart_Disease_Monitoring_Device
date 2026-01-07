@@ -1,2 +1,81 @@
-﻿__pycache__/
+﻿# -------------------------
+# OS / Editor
+# -------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
 
+# -------------------------
+# Python cache / build
+# -------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# -------------------------
+# Virtual env
+# -------------------------
+.venv/
+venv/
+env/
+ENV/
+
+# -------------------------
+# Jupyter
+# -------------------------
+.ipynb_checkpoints/
+
+# -------------------------
+# Logs
+# -------------------------
+*.log
+
+# -------------------------
+# Data / results (adjust to your project)
+# -------------------------
+results_csv/
+results/
+output/
+outputs/
+*.csv
+*.json
+
+# If you want to keep some CSV/JSON templates tracked, comment the two lines above
+# and instead ignore only generated ones, e.g.:
+# results_csv/predictions_models.csv
+# results_csv/prediction_ensemble.json
+
+# -------------------------
+# Model artifacts / checkpoints
+# -------------------------
+model/
+models/
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
+*.onnx
+*.cbm
+
+# -------------------------
+# Large datasets / raw data
+# -------------------------
+data/
+datasets/
+*.zip
+*.7z
+
+# -------------------------
+# Secrets (if any)
+# -------------------------
+.env
+*.key
+*.pem
