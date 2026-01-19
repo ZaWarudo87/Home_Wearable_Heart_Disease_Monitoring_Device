@@ -82,7 +82,7 @@ def linear_resample(ts, x, fs_target):
     t0, t1 = ts[0], ts[-1]
     n = int(np.floor((t1 - t0) * fs_target)) + 1
     if n <= 1:
-        # 太短則不重採樣
+        # 太短不採樣
         return x.copy(), fs_target, ts.copy()
     t_new = t0 + np.arange(n) / fs_target
     x_new = np.interp(t_new, ts, x)
@@ -146,7 +146,7 @@ if __name__ == "__main__":
             f"| peaks={len(qrs)}"
         )
 
-        # === (A) 一定要做：計算 feature ===
+        # === 計算 feature ===
         features = det.compute_ecg_features(ecg_use, fs_i)
         features_stfilt = det.compute_ecg_features_stfilt(ecg_use, fs_i)
 
@@ -157,7 +157,7 @@ if __name__ == "__main__":
             f"Oldpeak={features_stfilt['Oldpeak']:.3f} mV"
         )
 
-        # === (B) 一定要做：存 window-level feature ===
+        # === 存 window-level feature ===
         feature_out = {
             "file": base,
             "fs_hz": round(fs_est, 2),

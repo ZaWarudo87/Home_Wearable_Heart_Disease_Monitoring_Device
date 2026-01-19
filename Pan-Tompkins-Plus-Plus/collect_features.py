@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 from collections import Counter
 
-# ===== 使用者基本資料（之後可以改成由前端傳入或讀檔）=====
+# ===== 使用者基本資料（之後改成由前端傳入或讀檔）=====
 base_patient_info = {
     "Age": 21,
     "Sex": "F",
@@ -67,13 +67,13 @@ def main():
     rest_feat = collect_rest(df_rest)
     ex_feat   = collect_exercise(df_ex)
 
-    # 你定義的 delta oldpeak（mean 版本）
+    # delta oldpeak）
     delta_oldpeak = ex_feat["ex_mean_oldpeak"] - rest_feat["rest_mean_oldpeak"]
 
-    # 產生 ST_Slope（exercise 段代表值）
+    # ST_Slope
     ex_st_slope = st_slope_from_ratios(ex_feat)
 
-    # ===== 寫 collectd_features（debug 用）=====
+    # ===== 寫 collectd_features=====
     collectd = {}
     for k, v in rest_feat.items():
         collectd[k] = v
@@ -88,11 +88,11 @@ def main():
     collectd_path = out_dir / "collectd_features.csv"
     pd.DataFrame([collectd]).to_csv(collectd_path, index=False, encoding="utf-8-sig")
 
-    # ===== 最終給 model 的 input（一次預測用）=====
+    # ===== 最終給 model 的 input=====
     model_input = base_patient_info.copy()
-    model_input["MaxHR"] = float(ex_feat["ex_max_hr"])      # 建議用 exercise peak HR
-    model_input["ST_Slope"] = ex_st_slope                   # exercise 代表 slope
-    model_input["Oldpeak"] = float(delta_oldpeak)           # 這裡放 delta_oldpeak（你們定義）
+    model_input["MaxHR"] = float(ex_feat["ex_max_hr"])      
+    model_input["ST_Slope"] = ex_st_slope                   
+    model_input["Oldpeak"] = float(delta_oldpeak)          
 
     model_input_path = out_dir / "model_input_features.csv"
     pd.DataFrame([model_input]).to_csv(model_input_path, index=False, encoding="utf-8-sig")
