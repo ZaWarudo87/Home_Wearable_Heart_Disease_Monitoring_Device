@@ -101,7 +101,7 @@ def main():
         "ChestPainType": str(feature_map.get("ChestPainType", "")),
     }
 
-    payload = {
+    out_dict = {
         "features_used_values": to_py(features_used_values),
         "ensemble": {
             "final_prob": to_py(final_prob),
@@ -110,7 +110,7 @@ def main():
     }
 
     with open(out_json, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+        json.dump(out_dict, f, ensure_ascii=False, indent=2)
 
     print("\n[Done] predictions saved:")
     print(f"  {out_json}")
