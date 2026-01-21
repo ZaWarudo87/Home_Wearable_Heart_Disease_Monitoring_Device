@@ -1,8 +1,14 @@
+import argparse
+import os
+import random
+
 from bisect import bisect_left
 from datetime import datetime, timedelta
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
-import random
+
+import result_data
 
 db = SQLAlchemy()
 
@@ -135,8 +141,6 @@ def add_health_record(user_id: int, data: dict) -> dict:
             HealthRecord.timestamp >= today_start  # Delete today's old records
         )
     ).delete()
-
-
     
     # Convert fasting_bs to boolean (True if > 120 mg/dl)
     fasting_bs_value = data["fasting_bs"]
@@ -200,7 +204,11 @@ def get_chart_data(user_id: int, points: int, data_type: str = 'hr') -> dict:
             .limit(points).all()
         
         if records:
+            earliest_time = (datetime.now() - timedelta(minutes=points)).timestamp()
+            while records and records[-1].timestamp.timestamp() < earliest_time:
+                records.pop()
             records.reverse()
+
             labels = [r.timestamp.strftime('%H:%M') for r in records]
             values = [r.heart_rate for r in records]
             if points >= 43200:
@@ -224,7 +232,11 @@ def get_chart_data(user_id: int, points: int, data_type: str = 'hr') -> dict:
             .limit(points).all()
         
         if records:
+            earliest_time = (datetime.now() - timedelta(days=points)).timestamp()
+            while records and records[-1].timestamp.timestamp() < earliest_time:
+                records.pop()
             records.reverse()
+
             labels = [r.timestamp.strftime('%Y-%m-%d') for r in records]
             values = [r.resting_bp for r in records]
             for t in [(datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(points)][::-1]:
@@ -252,20 +264,138 @@ def get_health_summary(user_id: int) -> dict:
     
     if hr_records:
         avg_hr = sum(r.heart_rate for r in hr_records) // len(hr_records)
-        max_hr = max(r.heart_rate for r in hr_records)
+        # max_hr = max(r.heart_rate for r in hr_records)
     else:
         avg_hr = random.randint(70, 80)
-        max_hr = random.randint(150, 160)
+        # max_hr = random.randint(150, 160)
     
     resting_bp = latest_health.resting_bp if latest_health else random.randint(115, 125)
+
+    user_info = {}
+    user_info["Age"] = UserProfile.query.filter_by(user_id=user_id).first().age if UserProfile.query.filter_by(user_id=user_id).first() else 0
+    user_info["Sex"] = UserProfile.query.filter_by(user_id=user_id).first().sex if UserProfile.query.filter_by(user_id=user_id).first() else "M"
+    user_info["ChestPainType"] = UserProfile.query.filter_by(user_id=user_id).first().chest_pain_type if UserProfile.query.filter_by(user_id=user_id).first() else "ASY"
+    user_info["ExerciseAngina"] = UserProfile.query.filter_by(user_id=user_id).first().exercise_angina if UserProfile.query.filter_by(user_id=user_id).first() else 0
+    user_info["ExerciseAngina"] = "Y" if user_info["ExerciseAngina"] != 0 else "N"
+    user_info["RestingBP"] = resting_bp
+    user_info["Cholesterol"] = latest_health.cholesterol if latest_health else random.randint(150, 200)
+    user_info["FastingBS"] = latest_health.fasting_bs if latest_health else 0
+    user_other_info = result_data.parse_user_info(user_info)
     
     return {
         "last_update": datetime.now().isoformat(),
         "overview": {
             "resting_bp": resting_bp,
             "avg_hr": avg_hr,
-            "max_hr": max_hr,
-            "oldpeak": round(random.uniform(0.5, 1.2), 1)  # TODO: Calculate from ECG data
+            "max_hr": user_other_info["max_hr"],
+            "oldpeak": user_other_info["oldpeak"],
+            "st_slope": user_other_info["st_slope"]
         },
         "ai_summary": "這是來自 Python 後端的 AI 健康建議。請保持規律運動並監測您的心率。"
     }
+
+# ==================== Database Debug Tools ====================
+
+def clear_database():
+    db.session.query(UserProfile).delete()
+    db.session.query(HealthRecord).delete()
+    db.session.query(HRRecord).delete()
+    db.session.query(User).delete()
+    db.session.commit()
+
+def show_all_tables():
+    print("\n" + "="*80)
+    print("DATABASE CONTENT")
+    print("="*80)
+    
+    # Users table
+    users = User.query.all()
+    print(f"\n📋 USERS ({len(users)} records)")
+    print("-" * 80)
+    if users:
+        print(f"{'ID':<5} {'Google ID':<15} {'Name':<20} {'Email':<30} {'Completed':<10}")
+        print("-" * 80)
+        for user in users:
+            print(f"{user.id:<5} {user.google_id[:14]:<15} {user.name[:19]:<20} {user.email[:29]:<30} {user.profile_completed:<10}")
+    else:
+        print("(No users found)")
+    
+    # User Profiles table
+    profiles = UserProfile.query.all()
+    print(f"\n👤 USER PROFILES ({len(profiles)} records)")
+    print("-" * 60)
+    if profiles:
+        print(f"{'ID':<5} {'User ID':<8} {'Sex':<5} {'Age':<5} {'Chest Pain':<15} {'Ex.Angina':<10}")
+        print("-" * 60)
+        for profile in profiles:
+            print(f"{profile.id:<5} {profile.user_id:<8} {profile.sex:<5} {profile.age:<5} {profile.chest_pain_type[:14]:<15} {profile.exercise_angina:<10}")
+    else:
+        print("(No profiles found)")
+    
+    # Health Records table
+    health_records = HealthRecord.query.all()
+    print(f"\n🏥 HEALTH RECORDS ({len(health_records)} records)")
+    print("-" * 70)
+    if health_records:
+        print(f"{'ID':<5} {'User ID':<8} {'BP':<5} {'Chol':<5} {'FastBS':<8} {'Timestamp':<19}")
+        print("-" * 70)
+        for record in health_records:
+            print(f"{record.id:<5} {record.user_id:<8} {record.resting_bp:<5} {record.cholesterol:<5} {record.fasting_bs:<8} {record.timestamp.strftime('%Y-%m-%d %H:%M:%S'):<19}")
+    else:
+        print("(No health records found)")
+    
+    # HR Records table  
+    hr_records = HRRecord.query.order_by(HRRecord.timestamp.desc()).limit(10).all()
+    total_hr = HRRecord.query.count()
+    print(f"\n❤️  HR RECORDS ({total_hr} total, showing last 10)")
+    print("-" * 50)
+    if hr_records:
+        print(f"{'ID':<5} {'User ID':<8} {'HR':<5} {'Timestamp':<19}")
+        print("-" * 50)
+        for record in hr_records:
+            print(f"{record.id:<5} {record.user_id:<8} {record.heart_rate:<5} {record.timestamp.strftime('%Y-%m-%d %H:%M:%S'):<19}")
+    else:
+        print("(No HR records found)")
+    
+    print("\n" + "="*80)
+
+def delete_user_by_id(user_id: int):
+    user = User.query.get(user_id)
+    if user:
+        db.session.delete(user)
+        db.session.commit()
+        return {"message": f"User {user_id} and related data deleted successfully"}
+    else:
+        return {"error": "User not found"}
+
+if __name__ == '__main__':
+    # Create a minimal Flask app for database operations
+    app = Flask(__name__)
+    data_dir = os.path.join(os.path.dirname(__file__), 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(data_dir, "data.db")}'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    parser = argparse.ArgumentParser(description='Database operations')
+    parser.add_argument('command', choices=['show_all_tables', 'clear_database', 'delete_user'], 
+                       help='Database command to execute')
+    parser.add_argument('--user_id', type=int, help='User ID to delete (required for delete_user command)')
+    
+    args = parser.parse_args()
+    
+    init_db(app)
+    
+    with app.app_context():
+        if args.command == 'show_all_tables':
+            show_all_tables()
+            print("All tables displayed successfully!")
+        elif args.command == 'clear_database':
+            clear_database()
+            print("Database cleared successfully!")
+        elif args.command == 'delete_user':
+            if args.user_id is None:
+                print("Error: --user_id is required for delete_user command")
+            else:
+                result = delete_user_by_id(args.user_id)
+                print(result.get("message") or result.get("error"))

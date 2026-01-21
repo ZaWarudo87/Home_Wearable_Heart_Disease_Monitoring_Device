@@ -51,6 +51,20 @@ def main():
     in_csv = base_dir / "results_csv" / "window_features.csv"
     if not in_csv.exists():
         raise FileNotFoundError(f"找不到 {in_csv}")
+    
+    out_dir = base_dir / "results_csv"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    model_input_path = out_dir / "model_input_features.csv"
+    if not model_input_path.exists():
+        raise FileNotFoundError(f"找不到 {model_input_path}")
+    ipt = pd.read_csv(model_input_path)
+    if ipt.empty:
+        raise ValueError("model_input_features.csv 是空的")
+    base_patient_info["Age"] = int(ipt.iloc[0]["Age"])
+    base_patient_info["Sex"] = str(ipt.iloc[0]["Sex"])
+    base_patient_info["ChestPainType"] = str(ipt.iloc[0]["ChestPainType"])
+    base_patient_info["ExerciseAngina"] = str(ipt.iloc[0]["ExerciseAngina"])
 
     df = pd.read_csv(in_csv)
     if df.empty:
@@ -82,9 +96,6 @@ def main():
     collectd["delta_oldpeak"] = float(delta_oldpeak)
     collectd["ex_st_slope_major"] = ex_st_slope
 
-    out_dir = base_dir / "results_csv"
-    out_dir.mkdir(parents=True, exist_ok=True)
-
     collectd_path = out_dir / "collectd_features.csv"
     pd.DataFrame([collectd]).to_csv(collectd_path, index=False, encoding="utf-8-sig")
 
@@ -94,7 +105,6 @@ def main():
     model_input["ST_Slope"] = ex_st_slope                   
     model_input["Oldpeak"] = float(delta_oldpeak)          
 
-    model_input_path = out_dir / "model_input_features.csv"
     pd.DataFrame([model_input]).to_csv(model_input_path, index=False, encoding="utf-8-sig")
 
     print("[DONE] Aggregation finished")

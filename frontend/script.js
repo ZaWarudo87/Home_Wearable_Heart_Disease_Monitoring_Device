@@ -21,7 +21,7 @@ const MAX_ECG_POINTS = 300;
 const ECG_UPDATE_MS = 40;
 
 // --- API Base URL ---
-const API_BASE_URL = "https://zoo-immigrants-pct-grand.trycloudflare.com";
+const API_BASE_URL = "https://chicago-ryan-sacred-goat.trycloudflare.com";
 
 // --- API Helper ---
 
@@ -196,7 +196,7 @@ async function fetchHealthSummary() {
         document.getElementById('resting-bp').textContent = data.overview.resting_bp;
         document.getElementById('avg-hr').textContent = data.overview.avg_hr;
         document.getElementById('max-hr').textContent = data.overview.max_hr;
-        document.getElementById('oldpeak').textContent = data.overview.oldpeak;
+        document.getElementById('st-slope').textContent = data.overview.st_slope;
         document.getElementById('health-summary').textContent = data.ai_summary;
         
     } catch (error) {

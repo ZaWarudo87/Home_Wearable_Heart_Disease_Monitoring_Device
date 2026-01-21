@@ -86,7 +86,7 @@ def get_health_summary(user_data: dict) -> dict:
         "ai_summary": "這是來自 Python 後端的 AI 健康建議。請保持規律運動並監測您的心率。"
     }
     
-def get_health_risk(user_data: dict) -> dict:
+def get_health_risk() -> dict:
     return {
         "risk_score": random.randint(30, 40),
         "level": "低風險"

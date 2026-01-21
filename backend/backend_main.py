@@ -5,7 +5,6 @@ eventlet.monkey_patch()
 
 import json
 import os
-import random
 import threading
 import time
 
@@ -14,11 +13,11 @@ from flask_cors import CORS
 from flask_sock import Sock
 from simple_websocket import Server
 
-import calc
 import database
 import gemini
 import login
 import pseudo_data
+import result_data
 
 app = Flask(__name__)
 CORS(app) 
@@ -132,7 +131,7 @@ def get_health_risk():
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
-    return jsonify(pseudo_data.get_health_risk(user_data))
+    return jsonify(result_data.get_health_risk())
 
 @app.route('/api/v1/charts/bp', methods=['GET'])
 def get_chart_bp():
@@ -144,9 +143,9 @@ def get_chart_bp():
     
     # To prevent others play our API
     if period == '7d':
-        data = pseudo_data.get_chart_data(user_data["id"], 7, 'bp') #database
+        data = database.get_chart_data(user_data["id"], 7, 'bp') #database
     else: # 30d
-        data = pseudo_data.get_chart_data(user_data["id"], 30, 'bp') #database
+        data = database.get_chart_data(user_data["id"], 30, 'bp') #database
     return jsonify(data)
 
 @app.route('/api/v1/charts/hr', methods=['GET'])
@@ -159,13 +158,13 @@ def get_chart_hr():
     period = request.args.get('period')
     
     if period == '1h':
-        data = pseudo_data.get_chart_data(user_data["id"], 60, 'hr') #database
+        data = database.get_chart_data(user_data["id"], 60, 'hr') #database
     elif period == '6h':
-        data = pseudo_data.get_chart_data(user_data["id"], 360, 'hr') #database
+        data = database.get_chart_data(user_data["id"], 360, 'hr') #database
     elif period == '24h':
-        data = pseudo_data.get_chart_data(user_data["id"], 43200, 'hr') #database
+        data = database.get_chart_data(user_data["id"], 43200, 'hr') #database
     else: # 7d
-        data = pseudo_data.get_chart_data(user_data["id"], 302400, 'hr') #database
+        data = database.get_chart_data(user_data["id"], 302400, 'hr') #database
     return jsonify(data)
 
 # --- Real-time ECG WebSocket ---

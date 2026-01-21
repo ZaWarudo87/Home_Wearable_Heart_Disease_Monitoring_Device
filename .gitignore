@@ -14,18 +14,24 @@ __pycache__/
 
 # OS
 .DS_Store
-Pan-Tompkins-Plus-Plus/physionet.org/
-Pan-Tompkins-Plus-Plus/ECG-Live-Filter/
-ECG-Live-Filter/physionet.org/
-
 Thumbs.db
 
 # Docker
 *.log
 /tmp/
-/backend/logs/
+/docker/logs/
 cloudflared.log
 
 # Docker volumes and data
 /backend/data/
 /backend/temp/
+
+# outputs
+Pan-Tompkins-Plus-Plus/physionet.org/
+Pan-Tompkins-Plus-Plus/ECG-Live-Filter/
+Pan-Tompkins-Plus-Plus/results_csv/prediction_ensemble.json
+Pan-Tompkins-Plus-Plus/results_csv/model_input_features.csv
+Pan-Tompkins-Plus-Plus/results_ptbxl
+
+# database
+backend/data
