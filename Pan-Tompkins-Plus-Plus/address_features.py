@@ -87,6 +87,7 @@ def compute_ecg_features(sig, fs, use_st_filter=True):
     return {
         "HR": max_hr,
         "Oldpeak": st_median,
+        "RestingECG": "ST" if (np.isfinite(st_median) and abs(st_median) > 0.05) else "Normal",
         "ST_Slope": st_slope,
         "ST_Label": st_label,
         "n_beats": beats_count,
@@ -228,6 +229,7 @@ if __name__ == "__main__":
             "max_hr": round(features["HR"], 1),
             "st_label": features_stfilt["ST_Label"],
             "oldpeak": round(features_stfilt["Oldpeak"], 3),
+            "resting_ecg": features_stfilt["RestingECG"],
         }
 
         feature_csv = out_dir / "window_features.csv"

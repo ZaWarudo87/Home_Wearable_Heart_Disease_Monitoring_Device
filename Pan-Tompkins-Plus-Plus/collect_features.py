@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 from collections import Counter
 
-# ===== 使用者基本資料（之後改成由前端傳入或讀檔）=====
+# ===== 使用者基本資料（之後改成由前端傳入或讀檔）(KonoDiaDa 加油!!!!!!)=====
 base_patient_info = {
     "Age": 21,
     "Sex": "F",
@@ -21,6 +21,7 @@ def collect_rest(df: pd.DataFrame) -> dict:
         "rest_mean_oldpeak": df["oldpeak"].mean(),
         "rest_min_oldpeak": df["oldpeak"].min(),
         "rest_st_label_major": majority_vote(df["st_label"]),
+        "rest_resting_ecg_major": majority_vote(df["resting_ecg"]),
         "n_rest_windows": int(len(df)),
     }
 
@@ -101,9 +102,10 @@ def main():
 
     # ===== 最終給 model 的 input=====
     model_input = base_patient_info.copy()
-    model_input["MaxHR"] = float(ex_feat["ex_max_hr"])      
-    model_input["ST_Slope"] = ex_st_slope                   
-    model_input["Oldpeak"] = float(delta_oldpeak)          
+    model_input["MaxHR"] = float(ex_feat["ex_max_hr"])
+    model_input["ST_Slope"] = ex_st_slope
+    model_input["Oldpeak"] = float(delta_oldpeak)
+    model_input["RestingECG"] = rest_feat["rest_resting_ecg_major"]
 
     pd.DataFrame([model_input]).to_csv(model_input_path, index=False, encoding="utf-8-sig")
 

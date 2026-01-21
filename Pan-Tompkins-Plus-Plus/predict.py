@@ -42,7 +42,6 @@ def main():
 
     out_dir = base_dir / "results_csv"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_csv = out_dir / "predictions_models.csv"
     out_json = out_dir / "prediction_ensemble.json"
 
     if not input_csv.exists():
@@ -99,9 +98,10 @@ def main():
         "ExerciseAngina": str(feature_map.get("ExerciseAngina", "")),
         "ST slope": str(feature_map.get("ST_Slope", "")),
         "ChestPainType": str(feature_map.get("ChestPainType", "")),
+        "RestingECG": str(feature_map.get("RestingECG", "")),
     }
 
-    payload = {
+    out_dict = {
         "features_used_values": to_py(features_used_values),
         "ensemble": {
             "final_prob": to_py(final_prob),
@@ -110,7 +110,7 @@ def main():
     }
 
     with open(out_json, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+        json.dump(out_dict, f, ensure_ascii=False, indent=2)
 
     print("\n[Done] predictions saved:")
     print(f"  {out_json}")
