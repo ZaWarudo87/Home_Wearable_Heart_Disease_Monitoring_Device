@@ -98,10 +98,9 @@ def compute_ecg_features(sig, fs, use_st_filter=True, detector=None):
         "n_beats": beats_count,
     }
 
+# ST-focused bandpass: 0.5-35 Hz
 def filter_for_st(sig, fs):
     sig = np.asarray(sig, dtype=float)
-
-    # ST-focused bandpass: 0.5-35 Hz
     
     # High-pass filter (3rd-order Butterworth), cutoff = 0.5 Hz
     hp_cut = 0.5
