@@ -11,6 +11,7 @@ base_patient_info = {
 }
 
 # Pick majority in ST_label and RestingECG column
+# If tie, pick the one that appears last
 def majority_vote(series):
     values = series.dropna()
     if values.empty:
@@ -32,7 +33,6 @@ def collect_rest(df: pd.DataFrame) -> dict:
     }
 
 # Function that aggregates exercise features
-
 def collect_exercise(df: pd.DataFrame) -> dict:
     total = len(df)
     return {
@@ -54,7 +54,7 @@ def main():
     if df.empty:
         raise ValueError("window_features.csv is empty")
 
-    # Split by filename prefix
+    # Split by filename prefix (This should be modified we should use a variable to classify rest/exercise)
     df_rest = df[df["file"].astype(str).str.startswith("rest_")]
     df_ex   = df[df["file"].astype(str).str.startswith("exercise_")]
 
@@ -87,7 +87,7 @@ def main():
     collectd_path = out_dir / "collectd_features.csv"
     pd.DataFrame([collectd]).to_csv(collectd_path, index=False, encoding="utf-8-sig")
 
-    # Final model input (single row)
+    # Export Final model input 
     model_input = base_patient_info.copy()
     model_input["MaxHR"] = float(ex_feat["ex_max_hr"])
     model_input["ST_Slope"] = ex_st_slope
