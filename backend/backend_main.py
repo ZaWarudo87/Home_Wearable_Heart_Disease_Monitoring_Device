@@ -14,6 +14,7 @@ from flask_sock import Sock
 from simple_websocket import Server
 
 import database
+import ecg_wifi
 import gemini
 import login
 import pseudo_data
@@ -204,6 +205,7 @@ def ecg_stream(ws: Server):
 
 # --- Main ---
 if __name__ == '__main__':
+    threading.Thread(target=ecg_wifi.main, daemon=True).start()
     print("Starting server with eventlet on http://localhost:39244") # dec(39244) = oct(114514)
     eventlet.wsgi.server(eventlet.listen(('0.0.0.0', 39244)), app)
 

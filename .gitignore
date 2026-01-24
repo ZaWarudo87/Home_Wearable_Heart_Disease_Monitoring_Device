@@ -32,6 +32,11 @@ Pan-Tompkins-Plus-Plus/ECG-Live-Filter/
 Pan-Tompkins-Plus-Plus/results_csv/prediction_ensemble.json
 Pan-Tompkins-Plus-Plus/results_csv/model_input_features.csv
 Pan-Tompkins-Plus-Plus/results_ptbxl
+backend/ecg_data/
 
 # database
 backend/data
+
+# ESP-IDF
+ESP32/sdkconfig
+ESP32/build/

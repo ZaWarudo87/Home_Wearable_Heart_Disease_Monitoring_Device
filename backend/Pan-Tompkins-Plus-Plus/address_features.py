@@ -162,9 +162,54 @@ def linear_resample(ts, x, fs_target):
     x_new = np.interp(t_new, ts, x)
     return x_new, fs_target, t_new
 
-if __name__ == "__main__":
-    det = RpeakDetection()
+# ===== Main execution =====
+det = RpeakDetection()
 
+def calc_features(ts: np.ndarray, ecg: np.ndarray, i: int = 0, base: str = "-") -> None:
+    fs_est, dt_stats = estimate_fs(ts)
+
+    if RESAMPLE_TO is not None and RESAMPLE_TO > 0:
+        ecg_use, fs_float, ts_rs = linear_resample(ts, ecg, float(RESAMPLE_TO))
+    else:
+        ecg_use, fs_float, ts_rs = ecg, fs_est, ts
+
+    fs_i = int(round(fs_float))
+    qrs = np.asarray(det.rpeak_detection(ecg_use, fs_i), dtype=int)
+
+    if qrs.size:
+        refractory = int(round(0.200 * fs_i))
+        keep = [qrs[0]]
+        for k in range(1, len(qrs)):
+            if qrs[k] - keep[-1] >= refractory:
+                keep.append(qrs[k])
+        qrs = np.asarray(keep, dtype=int)
+
+    print(
+        f"[{i}/{len(files)}] {base:>20s} | fs≈{fs_est:.2f} Hz "
+        f"(dt_mean={dt_stats['dt_ms_mean']:.3f} ms, std={dt_stats['dt_ms_std']:.3f} ms) "
+        f"| peaks={len(qrs)}"
+    )
+
+    features = compute_ecg_features(ecg_use, fs_i, use_st_filter=False)
+    features_stfilt = compute_ecg_features(ecg_use, fs_i, use_st_filter=True)
+
+    print("result :")
+    print(
+        f"  MAX HR={features['HR']:.1f} bpm, "
+        f"ST_label={features_stfilt['ST_Label']}, "
+        f"Oldpeak={features_stfilt['Oldpeak']:.3f} mV"
+    )
+
+    feature_out = {
+        "file": base,
+        "fs_hz": round(fs_est, 2),
+        "max_hr": round(features["HR"], 1),
+        "st_label": features_stfilt["ST_Label"],
+        "oldpeak": round(features_stfilt["Oldpeak"], 3),
+        "resting_ecg": features_stfilt["RestingECG"],
+    }
+
+if __name__ == "__main__":
     PROJ_DIR = Path(__file__).resolve().parent
     CSV_DIR = PROJ_DIR / "ECG_DATA"
 
