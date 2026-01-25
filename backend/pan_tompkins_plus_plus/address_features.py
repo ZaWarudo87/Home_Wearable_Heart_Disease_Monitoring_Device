@@ -6,9 +6,12 @@ import time
 import csv
 from scipy import signal
 
-from algos.pan_tompkins_plus_plus import Pan_Tompkins_Plus_Plus as RpeakDetection
+try:
+    from .algos.pan_tompkins_plus_plus import Pan_Tompkins_Plus_Plus as RpeakDetection
+except:
+    from algos.pan_tompkins_plus_plus import Pan_Tompkins_Plus_Plus as RpeakDetection
 
-def compute_ecg_features(sig, fs, use_st_filter=True):
+def compute_ecg_features(sig: np.ndarray, fs: float, use_st_filter: bool = True) -> dict:
     sig = np.asarray(sig, dtype=float)
     n = sig.size
 
@@ -34,10 +37,13 @@ def compute_ecg_features(sig, fs, use_st_filter=True):
         hr_valid = hr_inst[hr_inst <= HR_MAX]
         if hr_valid.size:
             max_hr = float(np.max(hr_valid))
+            avg_hr = float(np.mean(hr_valid))
         else:
             max_hr = np.nan
+            avg_hr = np.nan
     else:
         max_hr = np.nan
+        avg_hr = np.nan
 
     st_vals, slopes = [], []
     pre_w1 = int(0.20 * fs)
@@ -85,7 +91,8 @@ def compute_ecg_features(sig, fs, use_st_filter=True):
         st_label = None
 
     return {
-        "HR": max_hr,
+        "Max_HR": max_hr,
+        "Avg_HR": avg_hr,
         "Oldpeak": st_median,
         "RestingECG": "ST" if (np.isfinite(st_median) and abs(st_median) > 0.05) else "Normal",
         "ST_Slope": st_slope,
@@ -93,18 +100,25 @@ def compute_ecg_features(sig, fs, use_st_filter=True):
         "n_beats": beats_count,
     }
 
-def filter_for_st(sig, fs):
+# TODO: Why Wn out of range errors happen here sometimes?
+def filter_for_st(sig: np.ndarray, fs: float) -> np.ndarray:
     sig = np.asarray(sig, dtype=float)
 
     hp_cut = 0.5
     hp_N = 3
     Wn_hp = hp_cut * 2.0 / fs
+    # ensure Wn in valid range
+    if Wn_hp >= 1.0:
+        Wn_hp = 0.99
     bhp, ahp = signal.butter(hp_N, Wn_hp, btype="highpass")
     sig_hp = signal.filtfilt(bhp, ahp, sig)
 
     lp_cut = 35.0
     lp_N = 3
     Wn_lp = lp_cut * 2.0 / fs
+    # ensure Wn in valid range
+    if Wn_lp >= 1.0:
+        Wn_lp = 0.99
     blp, alp = signal.butter(lp_N, Wn_lp, btype="lowpass")
     sig_bp = signal.filtfilt(blp, alp, sig_hp)
 
@@ -139,7 +153,7 @@ def read_csv_one(path):
         raise ValueError(f"{path} too short to estimate sampling rate")
     return ts, val
 
-def estimate_fs(timestamps):
+def estimate_fs(timestamps: np.ndarray) -> tuple:
     dt = np.diff(timestamps)
     dt = dt[(dt > 0) & np.isfinite(dt)]
     if dt.size == 0:
@@ -165,7 +179,8 @@ def linear_resample(ts, x, fs_target):
 # ===== Main execution =====
 det = RpeakDetection()
 
-def calc_features(ts: np.ndarray, ecg: np.ndarray, i: int = 0, base: str = "-") -> None:
+def calc_features(ts: np.ndarray, ecg: np.ndarray, i: int = 0, base: str = "-", debug: bool = False) -> dict:
+    st_time = time.time()
     fs_est, dt_stats = estimate_fs(ts)
 
     if RESAMPLE_TO is not None and RESAMPLE_TO > 0:
@@ -173,7 +188,7 @@ def calc_features(ts: np.ndarray, ecg: np.ndarray, i: int = 0, base: str = "-") 
     else:
         ecg_use, fs_float, ts_rs = ecg, fs_est, ts
 
-    fs_i = int(round(fs_float))
+    fs_i = int(round(fs_float)) # TODO: May this causes Wn out of range errors?
     qrs = np.asarray(det.rpeak_detection(ecg_use, fs_i), dtype=int)
 
     if qrs.size:
@@ -184,34 +199,39 @@ def calc_features(ts: np.ndarray, ecg: np.ndarray, i: int = 0, base: str = "-") 
                 keep.append(qrs[k])
         qrs = np.asarray(keep, dtype=int)
 
-    print(
-        f"[{i}/{len(files)}] {base:>20s} | fs≈{fs_est:.2f} Hz "
-        f"(dt_mean={dt_stats['dt_ms_mean']:.3f} ms, std={dt_stats['dt_ms_std']:.3f} ms) "
-        f"| peaks={len(qrs)}"
-    )
+    if debug:
+        print(
+            f"[{i}/{len(files)}] {base:>20s} | fs≈{fs_est:.2f} Hz "
+            f"(dt_mean={dt_stats['dt_ms_mean']:.3f} ms, std={dt_stats['dt_ms_std']:.3f} ms) "
+            f"| peaks={len(qrs)}"
+        )
 
-    features = compute_ecg_features(ecg_use, fs_i, use_st_filter=False)
+    # features = compute_ecg_features(ecg_use, fs_i, use_st_filter=False)
     features_stfilt = compute_ecg_features(ecg_use, fs_i, use_st_filter=True)
 
-    print("result :")
-    print(
-        f"  MAX HR={features['HR']:.1f} bpm, "
-        f"ST_label={features_stfilt['ST_Label']}, "
-        f"Oldpeak={features_stfilt['Oldpeak']:.3f} mV"
-    )
+    if debug:
+        print("result :")
+        print(
+            f"  MAX HR={features_stfilt['Max_HR']:.1f} bpm, "
+            f"ST_label={features_stfilt['ST_Label']}, "
+            f"Oldpeak={features_stfilt['Oldpeak']:.3f} mV"
+        )
 
     feature_out = {
         "file": base,
         "fs_hz": round(fs_est, 2),
-        "max_hr": round(features["HR"], 1),
+        "max_hr": round(features_stfilt["Max_HR"], 1),
+        "avg_hr": round(features_stfilt["Avg_HR"], 1),
         "st_label": features_stfilt["ST_Label"],
         "oldpeak": round(features_stfilt["Oldpeak"], 3),
         "resting_ecg": features_stfilt["RestingECG"],
+        "calc_time": time.time() - st_time
     }
+    return feature_out
 
 if __name__ == "__main__":
     PROJ_DIR = Path(__file__).resolve().parent
-    CSV_DIR = PROJ_DIR / "ECG_DATA"
+    CSV_DIR = PROJ_DIR.parent.parent / "ESP32" / "ECG_DATA"
 
     if not CSV_DIR.exists():
         raise FileNotFoundError(f"Missing ECG_DATA folder: {CSV_DIR}")
@@ -234,48 +254,7 @@ if __name__ == "__main__":
         base = Path(csv_path).stem
 
         ts, ecg = read_csv_one(csv_path)
-        fs_est, dt_stats = estimate_fs(ts)
-
-        if RESAMPLE_TO is not None and RESAMPLE_TO > 0:
-            ecg_use, fs_float, ts_rs = linear_resample(ts, ecg, float(RESAMPLE_TO))
-        else:
-            ecg_use, fs_float, ts_rs = ecg, fs_est, ts
-
-        fs_i = int(round(fs_float))
-        qrs = np.asarray(det.rpeak_detection(ecg_use, fs_i), dtype=int)
-
-        if qrs.size:
-            refractory = int(round(0.200 * fs_i))
-            keep = [qrs[0]]
-            for k in range(1, len(qrs)):
-                if qrs[k] - keep[-1] >= refractory:
-                    keep.append(qrs[k])
-            qrs = np.asarray(keep, dtype=int)
-
-        print(
-            f"[{i}/{len(files)}] {base:>20s} | fs≈{fs_est:.2f} Hz "
-            f"(dt_mean={dt_stats['dt_ms_mean']:.3f} ms, std={dt_stats['dt_ms_std']:.3f} ms) "
-            f"| peaks={len(qrs)}"
-        )
-
-        features = compute_ecg_features(ecg_use, fs_i, use_st_filter=False)
-        features_stfilt = compute_ecg_features(ecg_use, fs_i, use_st_filter=True)
-
-        print("result :")
-        print(
-            f"  MAX HR={features['HR']:.1f} bpm, "
-            f"ST_label={features_stfilt['ST_Label']}, "
-            f"Oldpeak={features_stfilt['Oldpeak']:.3f} mV"
-        )
-
-        feature_out = {
-            "file": base,
-            "fs_hz": round(fs_est, 2),
-            "max_hr": round(features["HR"], 1),
-            "st_label": features_stfilt["ST_Label"],
-            "oldpeak": round(features_stfilt["Oldpeak"], 3),
-            "resting_ecg": features_stfilt["RestingECG"],
-        }
+        feature_out = calc_features(ts, ecg, i, base, True)
 
         feature_csv = out_dir / "window_features.csv"
         write_header = not feature_csv.exists()

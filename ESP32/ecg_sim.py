@@ -10,7 +10,7 @@ import sys
 HOST = "0.0.0.0"
 PORT = 80
 DATA_FOLDER = "ECG_DATA"
-SAMPLE_INTERVAL = 0.002  # 2000 microseconds = 0.002 seconds (500Hz)
+SAMPLE_INTERVAL = 0.002  # 2 ms between samples (500 Hz)
 
 def load_random_csv(folder: str) -> list:
     if not os.path.exists(folder):
@@ -35,7 +35,7 @@ def load_random_csv(folder: str) -> list:
             
             for row in reader:
                 try:
-                    val = float(row["ecg_value"])
+                    val = (float(row["timestamp"]), float(row["ecg_value"]))
                     data_points.append(val)
                 except ValueError:
                     continue
@@ -75,20 +75,18 @@ def start_server() -> None:
                 total_samples = len(ecg_data)
                 
                 print("Starting data stream...")
-                
+                delta_time = time.time() - ecg_data[0][0]
                 while True:
-                    start_time = time.time()
-                    
-                    val = ecg_data[data_index]
+                    val = ecg_data[data_index][1]
                     data_index = (data_index + 1) % total_samples
+
+                    elapsed = time.time() - delta_time
+                    while elapsed < ecg_data[data_index][0]:
+                        time.sleep(0.0005)
+                        elapsed = time.time() - delta_time
                     
                     message = f"{val}\n"
                     client_socket.sendall(message.encode('utf-8'))
-                    
-                    elapsed = time.time() - start_time
-                    sleep_time = SAMPLE_INTERVAL - elapsed
-                    if sleep_time > 0:
-                        time.sleep(sleep_time)
                         
             except (ConnectionResetError, BrokenPipeError):
                 print("Client disconnected. Waiting for new connection...")

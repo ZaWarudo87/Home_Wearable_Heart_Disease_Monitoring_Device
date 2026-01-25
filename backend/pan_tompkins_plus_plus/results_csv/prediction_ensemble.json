@@ -2,7 +2,7 @@
   "features_used_values": {
     "Age": 20.0,
     "MaxHR": 200.0,
-    "Oldpeak": 0.0562999999999999,
+    "Oldpeak": 0.0563,
     "Sex": "F",
     "ExerciseAngina": "N",
     "ST slope": "Up",

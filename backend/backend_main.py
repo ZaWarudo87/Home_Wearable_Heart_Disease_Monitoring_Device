@@ -5,6 +5,8 @@ eventlet.monkey_patch()
 
 import json
 import os
+import signal
+import sys
 import threading
 import time
 
@@ -31,6 +33,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(data_dir, 'd
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 database.init_db(app)
 
+ecg_wifi.flask_app = app
+
 # --- Security Headers for Google Sign-In ---
 @app.after_request
 def add_security_headers(response):
@@ -42,7 +46,8 @@ def add_security_headers(response):
 # --- Frontend Server ---
 # @app.route('/', methods=['GET'])
 # def serve_index():
-#     return send_from_directory('.', 'index.html')
+#     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
+#     return send_from_directory(frontend_dir, 'index.html')
 
 # --- Authentication Endpoints ---
 @app.route('/api/auth/google', methods=['POST'])
@@ -163,23 +168,35 @@ def get_chart_hr():
     elif period == '6h':
         data = database.get_chart_data(user_data["id"], 360, 'hr') #database
     elif period == '24h':
-        data = database.get_chart_data(user_data["id"], 43200, 'hr') #database
+        data = database.get_chart_data(user_data["id"], 1440, 'hr') #database
     else: # 7d
-        data = database.get_chart_data(user_data["id"], 302400, 'hr') #database
+        data = database.get_chart_data(user_data["id"], 10080, 'hr') #database
     return jsonify(data)
 
 # --- Real-time ECG WebSocket ---
+active_websockets = []
 def send_ecg_data(ws: Server):
     try:
         while True:
-            points_chunk = pseudo_data.get_points_chunk()  # Keep using pseudo_data for ECG simulation
-            heart_rate = pseudo_data.get_heart_rate(points_chunk)
+            points_chunk = ecg_wifi.get_points_chunk()
+            heart_rate = ecg_wifi.get_heart_rate()
             ws.send(json.dumps({"points": points_chunk, "heart_rate": heart_rate}))
             time.sleep(0.16)
     except Exception as e:
         print(f"WebSocket send error or client disconnected: {e}")
     finally:
         print("ECG stream thread stopped.")
+
+def signal_handler(sig, frame):
+    print("\n\n[CTRL+C] Shutting down server...")
+    print(f"Closing {len(active_websockets)} active WebSocket connection(s)...")
+    for ws in active_websockets[:]:
+        try:
+            ws.close()
+        except Exception as e:
+            print(f"Error closing WebSocket: {e}")
+    print("Server stopped.")
+    sys.exit(0)
 
 @sock.route('/ws/ecg/stream')
 def ecg_stream(ws: Server):
@@ -190,6 +207,7 @@ def ecg_stream(ws: Server):
         return
     print(f"WebSocket connection accepted for token: {token}")
     
+    active_websockets.append(ws)
     thread = threading.Thread(target=send_ecg_data, args=(ws,))
     thread.daemon = True
     thread.start()
@@ -202,10 +220,13 @@ def ecg_stream(ws: Server):
     finally:
         print("Client disconnected.")
 
-
 # --- Main ---
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, signal_handler)
     threading.Thread(target=ecg_wifi.main, daemon=True).start()
     print("Starting server with eventlet on http://localhost:39244") # dec(39244) = oct(114514)
-    eventlet.wsgi.server(eventlet.listen(('0.0.0.0', 39244)), app)
+    try:
+        eventlet.wsgi.server(eventlet.listen(('0.0.0.0', 39244)), app)
+    except KeyboardInterrupt:
+        signal_handler(signal.SIGINT, None)
 

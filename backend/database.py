@@ -11,6 +11,7 @@ from sqlalchemy import or_
 import result_data
 
 db = SQLAlchemy()
+now_user_id = -1
 
 # ==================== Database Models ====================
 
@@ -60,7 +61,7 @@ class HRRecord(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    heart_rate = db.Column(db.Integer, nullable=False)
+    heart_rate = db.Column(db.Float, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.now)
 
 
@@ -178,9 +179,12 @@ def get_health_data(user_id: int) -> dict:
 
 # ==================== Chart Data Functions ====================
 
-def add_hr_record(user_id: int, heart_rate: int) -> dict:
+def add_hr_record(user_id: int = now_user_id, heart_rate: float = 0.0) -> dict:
     # Delete too old records
     cutoff_time = datetime.now() - timedelta(days=7)
+
+    if user_id == -1:
+        user_id = now_user_id
     HRRecord.query.filter(
         HRRecord.user_id == user_id,
         HRRecord.timestamp < cutoff_time
@@ -195,13 +199,19 @@ def add_hr_record(user_id: int, heart_rate: int) -> dict:
     return {"message": "HR record added successfully"}
 
 
+def update_hr_record() -> None:
+    records = HRRecord.query.filter_by(user_id=-1).all()
+    for record in records:
+        record.user_id = now_user_id
+    db.session.commit()
+
 def get_chart_data(user_id: int, points: int, data_type: str = 'hr') -> dict:
     user = User.query.get(user_id)
     
     if data_type == 'hr':
         records = HRRecord.query.filter_by(user_id=user_id)\
             .order_by(HRRecord.timestamp.desc())\
-            .limit(points).all()
+            .limit(points * 6).all()
         
         if records:
             earliest_time = (datetime.now() - timedelta(minutes=points)).timestamp()
@@ -211,19 +221,25 @@ def get_chart_data(user_id: int, points: int, data_type: str = 'hr') -> dict:
 
             labels = [r.timestamp.strftime('%H:%M') for r in records]
             values = [r.heart_rate for r in records]
-            if points >= 43200:
-                labels = [(datetime.now() - timedelta(minutes=i)).strftime('%Y-%m-%d %H:%M') for i in range(points)][::-1]
-                new_values = []
-                j = 0
-                for i in values:
-                    temp = 0
-                    if i:
-                        temp += i
-                    j += 1
-                    if j == 30:
-                        new_values.append(temp // 30 if temp != 0 else None)
-                        j = 0
+            # print("labels:", labels)
+            # print("values:", values)
+            if points >= 1440:
+                labels = [datetime.now() - timedelta(minutes=i) for i in range(0, points, 30)][::-1]
+                new_values = [[] for _ in range(len(labels))]
+                for i in records:
+                    idx = bisect_left(labels, i.timestamp)
+                    new_values[idx].append(i.heart_rate)
+
+                for i in range(len(new_values)):
+                    labels[i] = labels[i].strftime('%m-%d %H:%M')
+                    if new_values[i]:
+                        new_values[i] = sum(new_values[i]) / len(new_values[i])
+                    else:
+                        new_values[i] = None
                 values = new_values
+                # print("labels: ", labels)
+                # print("values: ", values)
+                # print("len labels:", len(labels))
         else:
             return {"labels": [], "values": []}
     else:  # bp
@@ -271,6 +287,8 @@ def get_health_summary(user_id: int) -> dict:
     
     resting_bp = latest_health.resting_bp if latest_health else random.randint(115, 125)
 
+    global now_user_id
+    now_user_id = user_id
     user_info = {}
     user_info["Age"] = UserProfile.query.filter_by(user_id=user_id).first().age if UserProfile.query.filter_by(user_id=user_id).first() else 0
     user_info["Sex"] = UserProfile.query.filter_by(user_id=user_id).first().sex if UserProfile.query.filter_by(user_id=user_id).first() else "M"
@@ -281,6 +299,8 @@ def get_health_summary(user_id: int) -> dict:
     user_info["Cholesterol"] = latest_health.cholesterol if latest_health else random.randint(150, 200)
     user_info["FastingBS"] = latest_health.fasting_bs if latest_health else 0
     user_other_info = result_data.parse_user_info(user_info)
+
+    update_hr_record()
     
     return {
         "last_update": datetime.now().isoformat(),
@@ -303,6 +323,14 @@ def clear_database():
     db.session.query(User).delete()
     db.session.commit()
 
+def clear_hr_records():
+    db.session.query(HRRecord).delete()
+    db.session.commit()
+
+def clear_health_records():
+    db.session.query(HealthRecord).delete()
+    db.session.commit()
+
 def show_all_tables():
     print("\n" + "="*80)
     print("DATABASE CONTENT")
@@ -310,7 +338,7 @@ def show_all_tables():
     
     # Users table
     users = User.query.all()
-    print(f"\n📋 USERS ({len(users)} records)")
+    print(f"\nUSERS ({len(users)} records)")
     print("-" * 80)
     if users:
         print(f"{'ID':<5} {'Google ID':<15} {'Name':<20} {'Email':<30} {'Completed':<10}")
@@ -322,7 +350,7 @@ def show_all_tables():
     
     # User Profiles table
     profiles = UserProfile.query.all()
-    print(f"\n👤 USER PROFILES ({len(profiles)} records)")
+    print(f"\nUSER PROFILES ({len(profiles)} records)")
     print("-" * 60)
     if profiles:
         print(f"{'ID':<5} {'User ID':<8} {'Sex':<5} {'Age':<5} {'Chest Pain':<15} {'Ex.Angina':<10}")
@@ -334,7 +362,7 @@ def show_all_tables():
     
     # Health Records table
     health_records = HealthRecord.query.all()
-    print(f"\n🏥 HEALTH RECORDS ({len(health_records)} records)")
+    print(f"\nHEALTH RECORDS ({len(health_records)} records)")
     print("-" * 70)
     if health_records:
         print(f"{'ID':<5} {'User ID':<8} {'BP':<5} {'Chol':<5} {'FastBS':<8} {'Timestamp':<19}")
@@ -347,7 +375,7 @@ def show_all_tables():
     # HR Records table  
     hr_records = HRRecord.query.order_by(HRRecord.timestamp.desc()).limit(10).all()
     total_hr = HRRecord.query.count()
-    print(f"\n❤️  HR RECORDS ({total_hr} total, showing last 10)")
+    print(f"\nHR RECORDS ({total_hr} total, showing last 10)")
     print("-" * 50)
     if hr_records:
         print(f"{'ID':<5} {'User ID':<8} {'HR':<5} {'Timestamp':<19}")
@@ -378,7 +406,11 @@ if __name__ == '__main__':
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     parser = argparse.ArgumentParser(description='Database operations')
-    parser.add_argument('command', choices=['show_all_tables', 'clear_database', 'delete_user'], 
+    parser.add_argument('command', choices=['show_all_tables',
+                                            'clear_database',
+                                            'delete_user',
+                                            'clear_hr_records',
+                                            'clear_health_records'], 
                        help='Database command to execute')
     parser.add_argument('--user_id', type=int, help='User ID to delete (required for delete_user command)')
     
@@ -399,3 +431,9 @@ if __name__ == '__main__':
             else:
                 result = delete_user_by_id(args.user_id)
                 print(result.get("message") or result.get("error"))
+        elif args.command == 'clear_hr_records':
+            clear_hr_records()
+            print("HR records cleared successfully!")
+        elif args.command == 'clear_health_records':
+            clear_health_records()
+            print("Health records cleared successfully!")

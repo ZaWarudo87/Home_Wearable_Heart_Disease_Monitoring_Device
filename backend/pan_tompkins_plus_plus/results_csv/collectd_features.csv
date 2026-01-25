@@ -1,2 +1,2 @@
 ﻿rest_mean_hr,rest_mean_oldpeak,rest_min_oldpeak,rest_st_label_major,rest_resting_ecg_major,n_rest_windows,ex_max_hr,ex_mean_hr,ex_min_oldpeak,ex_mean_oldpeak,ex_st_down_ratio,ex_st_flat_ratio,ex_st_up_ratio,n_ex_windows,delta_oldpeak,ex_st_slope_major
-83.39,-0.10979999999999998,-0.13,Down,ST,10,200.0,188.9,-0.237,-0.053499999999999985,0.0,0.0,1.0,4,0.056299999999999996,Up
+83.39000000000001,-0.10980000000000001,-0.13,Down,ST,20,200.0,188.9,-0.237,-0.053499999999999985,0.0,0.0,1.0,4,0.056300000000000024,Up

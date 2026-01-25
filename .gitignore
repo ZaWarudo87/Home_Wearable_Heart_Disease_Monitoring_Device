@@ -40,3 +40,6 @@ backend/data
 # ESP-IDF
 ESP32/sdkconfig
 ESP32/build/
+
+# venv
+venv/

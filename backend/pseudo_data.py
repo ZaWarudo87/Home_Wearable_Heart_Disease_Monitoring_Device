@@ -92,7 +92,9 @@ def get_health_risk() -> dict:
         "level": "低風險"
     }
 
-def get_points_chunk(index: int = 0, chunk_size: int = 20) -> list:
+def get_points_chunk() -> list:
+    index = 0
+    chunk_size = 20
     points_chunk = []
     for _ in range(chunk_size):
         noise = random.uniform(-0.05, 0.05)
@@ -100,7 +102,7 @@ def get_points_chunk(index: int = 0, chunk_size: int = 20) -> list:
         index = (index + 1) % len(ONE_HEARTBEAT)
     return points_chunk
 
-def get_heart_rate(ecg_points: list) -> int:
+def get_heart_rate() -> int:
     return random.randint(65, 70)
 
 def check_auth_ws(token: str) -> bool:
