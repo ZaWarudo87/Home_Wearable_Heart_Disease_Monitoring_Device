@@ -168,10 +168,8 @@ det = RpeakDetection()
 def calc_features(ts: np.ndarray, ecg: np.ndarray, i: int = 0, base: str = "rest_ecg_data_", debug: bool = False) -> dict:
     st_time = time.time()
     fs_est = estimate_fs(ts)
-    ecg_use, fs_float, ts_rs = ecg, fs_est, ts
-
-    fs_i = int(round(fs_float)) # TODO: May this causes Wn out of range errors?
-    qrs = np.asarray(det.rpeak_detection(ecg_use, fs_i), dtype=int)
+    fs_i = int(round(fs_est)) # TODO: May this causes Wn out of range errors?
+    qrs = np.asarray(det.rpeak_detection(ecg, fs_i), dtype=int)
 
     if qrs.size:
         refractory = int(round(0.200 * fs_i))
@@ -188,7 +186,7 @@ def calc_features(ts: np.ndarray, ecg: np.ndarray, i: int = 0, base: str = "rest
         )
 
     # features = compute_ecg_features(ecg_use, fs_i, use_st_filter=False)
-    features_stfilt = compute_ecg_features(ecg_use, fs_i, use_st_filter=True)
+    features_stfilt = compute_ecg_features(ecg, fs_i, use_st_filter=True)
 
     if debug:
         print("result :")
