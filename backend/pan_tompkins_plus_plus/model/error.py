@@ -4,6 +4,7 @@ import numpy as np
 import joblib
 from pathlib import Path
 from sklearn.metrics import confusion_matrix, accuracy_score, precision_recall_fscore_support
+import matplotlib.pyplot as plt
 
 base = Path(__file__).resolve().parent
 train_path = base / "heart_train.csv"
@@ -15,13 +16,10 @@ selected_features = [
 X_raw = df[selected_features].copy()
 y = df["HeartDisease"].astype(int).to_numpy()
 
-cat_col = ["Sex", "ST_Slope", "ChestPainType", "ExerciseAngina"]
-X_encoded = pd.get_dummies(X_raw, columns=cat_col, drop_first=True)
-
 model_paths = {
-    "catboost_best": base / "catboost_best.pkl",
-    "gradient_boosting_best": base / "gradient_boosting_best.pkl",
-    "random_forest_best": base / "random_forest_best.pkl",
+    "new_CatBoost": base / "new_CatBoost.pkl",
+    "new_LogisticRegression": base / "new_LogisticRegression.pkl",
+    "new_GradientBoosting": base / "new_GradientBoosting.pkl",
 }
 
 def unwrap_predictor(obj):
@@ -43,9 +41,9 @@ probs = {}
 for name, path in model_paths.items():
     model = unwrap_predictor(joblib.load(path))
     if hasattr(model, "feature_names_in_"):
-        X = X_encoded.reindex(columns=list(model.feature_names_in_), fill_value=0.0)
+        X = X_raw.reindex(columns=list(model.feature_names_in_), fill_value=0.0)
     else:
-        X = X_encoded
+        X = X_raw
     pred = model.predict(X).astype(int)
     preds[name] = pred
     if hasattr(model, "predict_proba"):
@@ -56,10 +54,12 @@ for name, path in model_paths.items():
 prob_mean = np.mean(list(probs.values()), axis=0)
 preds["ensemble_mean_proba"] = (prob_mean >= 0.5).astype(int)
 
-# Ensemble: majority vote (tie -> 1 if mean >= 0.5)
-stack = np.stack([preds[k] for k in model_paths.keys()])
-mean_pred = np.mean(stack, axis=0)
-preds["ensemble_majority_vote"] = (mean_pred >= 0.5).astype(int)
+# Ensemble: mean probability without LogisticRegression
+if "new_LogisticRegression" in probs:
+    probs_wo_log = {k: v for k, v in probs.items() if k != "new_LogisticRegression"}
+    if probs_wo_log:
+        prob_mean_2 = np.mean(list(probs_wo_log.values()), axis=0)
+        preds["ensemble_mean_proba_wo_log"] = (prob_mean_2 >= 0.5).astype(int)
 
 def build_metrics(label, pred_arr):
     cm = confusion_matrix(y, pred_arr, labels=[0, 1])
@@ -98,7 +98,7 @@ common_all = set.intersection(*errors.values())
 print("\n== Error overlap across all models ==")
 print("errors common to all:", len(common_all))
 
-base_models = ["catboost_best", "gradient_boosting_best", "random_forest_best"]
+base_models = ["new_CatBoost", "new_LogisticRegression", "new_GradientBoosting"]
 print("\n== Pairwise error overlap (3 base models) ==")
 for i in range(len(base_models)):
     for j in range(i + 1, len(base_models)):
@@ -118,6 +118,27 @@ fp_common = set.intersection(*fp_sets.values())
 fn_common = set.intersection(*fn_sets.values())
 print("FP common to all 3:", len(fp_common))
 print("FN common to all 3:", len(fn_common))
+
+# Confusion matrix plot for ensemble_mean_proba
+if "ensemble_mean_proba" in preds:
+    cm = confusion_matrix(y, preds["ensemble_mean_proba"], labels=[0, 1])
+    fig, ax = plt.subplots(figsize=(4, 4))
+    im = ax.imshow(cm, cmap="Blues")
+    ax.set_xticks([0, 1])
+    ax.set_yticks([0, 1])
+    ax.set_xticklabels(["Pred 0", "Pred 1"])
+    ax.set_yticklabels(["True 0", "True 1"])
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("True")
+    for i in range(2):
+        for j in range(2):
+            ax.text(j, i, str(cm[i, j]), ha="center", va="center")
+    fig.colorbar(im, ax=ax)
+    fig.tight_layout()
+    out_png = base / "ensemble_mean_proba_confusion_matrix.png"
+    fig.savefig(out_png, dpi=150)
+    plt.close(fig)
+    print(f"[OK] Wrote confusion matrix image: {out_png}")
 
 out_csv = base / "model_compare.csv"
 pd.DataFrame(rows).to_csv(out_csv, index=False, encoding="utf-8-sig")

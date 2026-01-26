@@ -38,6 +38,10 @@ backend/pan_tompkins_plus_plus/results_csv/window_features.csv
 backend/pan_tompkins_plus_plus/results_csv/collectd_features.csv
 backend/ECG_DATA/
 
+# model outputs
+backend/pan_tompkins_plus_plus/model/*.csv
+backend/pan_tompkins_plus_plus/model/*.png
+
 # database
 backend/data
 
