@@ -21,6 +21,7 @@ Thumbs.db
 *.log
 /tmp/
 /docker/logs/
+/docker/data/
 cloudflared.log
 
 # Docker volumes and data
