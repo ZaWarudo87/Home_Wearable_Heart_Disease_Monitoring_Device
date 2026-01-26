@@ -13,15 +13,16 @@ except:
 
 # Function that computes ECG features for a given signal segment
 def compute_ecg_features(sig, fs, use_st_filter=True, detector=None):
-    sig = np.asarray(sig, dtype=float)
-    n = sig.size
+    sig_raw = np.asarray(sig, dtype=float)
+    n = sig_raw.size
 
+    # Keep original behavior: ST-related processing uses (optionally) filter_for_st
     if use_st_filter:
-        sig = filter_for_st(sig, fs)
+        sig_st = filter_for_st(sig_raw, fs)
 
     # R-peak detection
     det = detector or RpeakDetection()
-    peaks = np.asarray(det.rpeak_detection(sig, fs), dtype=int)
+    peaks = np.asarray(det.rpeak_detection(sig_st, fs), dtype=int)
 
     # Enforce max HR by refractory period
     HR_MAX = 200.0
@@ -68,15 +69,15 @@ def compute_ecg_features(sig, fs, use_st_filter=True, detector=None):
         if pre_start < 0 or pre_end <= pre_start or st_end >= n or j >= n:
             continue
 
-        baseline = float(np.median(sig[pre_start:pre_end]))
+        baseline = float(np.median(sig_st[pre_start:pre_end]))
 
-        st_seg = sig[st_start:st_end] - baseline
+        st_seg = sig_st[st_start:st_end] - baseline
         if st_seg.size:
             st_vals.append(float(np.mean(st_seg)))
 
         j_end = min(j + slope_win, n)
         x = np.arange(j, j_end) / float(fs)
-        y = sig[j:j_end] - baseline
+        y = sig_st[j:j_end] - baseline
         if x.size >= 3:
             k, _ = np.polyfit(x, y, 1)
             slopes.append(float(k))
@@ -95,12 +96,67 @@ def compute_ecg_features(sig, fs, use_st_filter=True, detector=None):
     else:
         st_label = None
 
+    # T-wave inversion detection
+    win_sec = 0.8
+    win = int(round(win_sec * fs))
+
+    if win <= 1:
+        return x
+    # enforce odd window length for nicer centering
+    if win % 2 == 0:
+        win += 1
+    pad = win // 2
+    xpad = np.pad(sig_raw, (pad, pad), mode="edge")
+    kernel = np.ones(win, dtype=float) / float(win)
+    baseline = np.convolve(xpad, kernel, mode="valid")
+
+    sig_t = sig_raw - baseline
+
+    # T-window after R (typical): ~200–450 ms
+    t_s = int(0.20 * fs)
+    t_e = int(0.45 * fs)
+
+    # thresholds (in mV); tune if needed
+    t_inv_thr = 0.05       # require negative deflection below -0.05 mV
+    dominance_ratio = 1.2  # |min| must dominate max positive by this factor
+
+    t_eval = 0
+    t_inv = 0
+
+    for r in peaks:
+        pre_start = r - pre_w1
+        pre_end = r - pre_w2
+        ts = r + t_s
+        te = r + t_e
+
+        if pre_start < 0 or pre_end <= pre_start or te >= n:
+            continue
+
+        baseline_t = float(np.median(sig_t[pre_start:pre_end]))
+        seg = sig_t[ts:te] - baseline_t
+        if seg.size < 3:
+            continue
+
+        mn = float(np.min(seg))
+        mx = float(np.max(seg))
+
+        # inversion: sufficiently negative, and negative deflection dominates
+        if (mn < -t_inv_thr) and (abs(mn) >= dominance_ratio * max(abs(mx), 1e-12)):
+            t_inv += 1
+        t_eval += 1
+
+    # decide presence: at least 20% of evaluable beats (and at least 1)
+    t_inv_present = (t_eval > 0) and (t_inv >= max(1, int(np.ceil(0.2 * t_eval))))
+
+    st_present = (np.isfinite(st_median) and abs(st_median) > 0.05)
+    resting_ecg = "ST" if (st_present or t_inv_present) else "Normal"
+
     # Map to model-ready feature names
     return {
         "Max_HR": max_hr,
         "Avg_HR": avg_hr,
         "Oldpeak": st_median,
-        "RestingECG": "ST" if (np.isfinite(st_median) and abs(st_median) > 0.05) else "Normal",
+        "RestingECG": resting_ecg,
         "ST_Slope": st_slope,
         "ST_Label": st_label,
         "n_beats": beats_count,
