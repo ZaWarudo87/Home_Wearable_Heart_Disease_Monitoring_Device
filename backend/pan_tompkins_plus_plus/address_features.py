@@ -107,7 +107,7 @@ def compute_ecg_features(sig, fs, use_st_filter=True, detector=None):
     }
 
 # ST-focused bandpass: 0.5-35 Hz
-# TODO: Why Wn out of range errors happen here sometimes?
+
 def filter_for_st(sig: np.ndarray, fs: float) -> np.ndarray:
     sig = np.asarray(sig, dtype=float)
     
@@ -115,9 +115,7 @@ def filter_for_st(sig: np.ndarray, fs: float) -> np.ndarray:
     hp_cut = 0.5
     hp_N = 3
     Wn_hp = hp_cut * 2.0 / fs
-    # ensure Wn in valid range
-    if Wn_hp >= 1.0:
-        Wn_hp = 0.99
+
     bhp, ahp = signal.butter(hp_N, Wn_hp, btype="highpass")
     sig_hp = signal.filtfilt(bhp, ahp, sig)
 
@@ -125,16 +123,14 @@ def filter_for_st(sig: np.ndarray, fs: float) -> np.ndarray:
     lp_cut = 35.0
     lp_N = 3
     Wn_lp = lp_cut * 2.0 / fs
-    # ensure Wn in valid range
-    if Wn_lp >= 1.0:
-        Wn_lp = 0.99
+
     blp, alp = signal.butter(lp_N, Wn_lp, btype="lowpass")
     sig_bp = signal.filtfilt(blp, alp, sig_hp)
 
     return sig_bp
 
 # ===== Tunables =====
-FS_FIXED = 160.0
+FS_sample = 160.0
 TIMESTAMP_COL = "timestamp"
 VALUE_COL = "ecg_value"
 
@@ -154,33 +150,13 @@ def read_csv_one(path):
         raise ValueError(f"{path} too short to estimate sampling rate")
     return ts, val
 
-# This function can be deleted if we can set sampling rate
-def estimate_fs(timestamps: np.ndarray) -> float:
-    dt = np.diff(timestamps)
-    dt = dt[(dt > 0) & np.isfinite(dt)]
-    if dt.size == 0:
-        raise ValueError("timestamp cannot estimate dt")
-    fs = 1.0 / np.median(dt)
-    return float(fs)
-
-def will_filter_overflow(fs: float) -> bool:
-    if fs <= 0:
-        return True
-    return (0.5 * 2.0 / fs) >= 1.0 or (35.0 * 2.0 / fs) >= 1.0
-
-def min_fs_in_file(timestamps: np.ndarray) -> float:
-    dt = np.diff(timestamps)
-    dt = dt[(dt > 0) & np.isfinite(dt)]
-    if dt.size == 0:
-        raise ValueError("timestamp cannot estimate dt")
-    return float(1.0 / np.max(dt))
-
 # ===== Main execution =====
 det = RpeakDetection()
 
+# ts unused
 def calc_features(ts: np.ndarray, ecg: np.ndarray, i: int = 0, base: str = "rest_ecg_data_", debug: bool = False) -> dict:
     st_time = time.time()
-    fs_i = int(round(FS_FIXED))
+    fs_i = int(round(FS_sample))
     qrs = np.asarray(det.rpeak_detection(ecg, fs_i), dtype=int)
 
     if qrs.size:
@@ -193,7 +169,7 @@ def calc_features(ts: np.ndarray, ecg: np.ndarray, i: int = 0, base: str = "rest
 
     if debug:
         print(
-            f"[{i}/{len(files)}] {base:>20s} | fs≈{fs_est:.2f} Hz "
+            f"[{i}/{len(files)}] {base:>20s}  "
             f"| peaks={len(qrs)}"
         )
 
@@ -210,7 +186,7 @@ def calc_features(ts: np.ndarray, ecg: np.ndarray, i: int = 0, base: str = "rest
 
     feature_out = {
         "file": base,
-        "fs_hz": round(FS_FIXED, 2),
+        "fs_hz": round(FS_sample, 2),
         "max_hr": round(features_stfilt["Max_HR"], 1),
         "avg_hr": round(features_stfilt["Avg_HR"], 1),
         "st_label": features_stfilt["ST_Label"],
@@ -240,23 +216,10 @@ if __name__ == "__main__":
     out_dir = PROJ_DIR / "results_csv"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    fs_list = []
-    fs_min_list = []
-    fs_min_file = None
-    fs_min_value = None
     for i, csv_path in enumerate(files, 1):
         base = Path(csv_path).stem
 
         ts, ecg = read_csv_one(csv_path)
-        fs_est = estimate_fs(ts)
-        fs_min = min_fs_in_file(ts)
-        fs_list.append(fs_est)
-        fs_min_list.append(fs_min)
-        if fs_min_value is None or fs_min < fs_min_value:
-            fs_min_value = fs_min
-            fs_min_file = base
-        if will_filter_overflow(fs_est):
-            print(f"[WARN] filter Wn out of range for {base} (fs_est={fs_est:.2f} Hz)")
         feature_out = calc_features(ts, ecg, i, base, True)
 
         feature_csv = out_dir / "window_features.csv"
@@ -268,7 +231,3 @@ if __name__ == "__main__":
                 writer.writeheader()
             writer.writerow(feature_out)
 
-    if fs_list:
-        print(f"[FS] median-based fs -> min={min(fs_list):.2f} Hz, max={max(fs_list):.2f} Hz, median={float(np.median(fs_list)):.2f} Hz")
-    if fs_min_list and fs_min_file is not None:
-        print(f"[FS_MIN] worst-case fs -> min={min(fs_min_list):.2f} Hz (file={fs_min_file})")
