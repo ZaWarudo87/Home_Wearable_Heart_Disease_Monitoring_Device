@@ -123,13 +123,18 @@ function showRegistrationForm() {
 
 async function handleRegistrationSubmit(event) {
     event.preventDefault();
-    
+    const lvh = document.getElementById('lvh').value;
     const formData = {
         sex: document.getElementById('sex').value,
         age: parseInt(document.getElementById('age').value),
         chest_pain_type: document.getElementById('chest-pain-type').value,
-        exercise_angina: document.getElementById('exercise-angina').value === 'Y'
+        exercise_angina: document.getElementById('exercise-angina').value === 'Y',
     };
+    //新增:
+    //如果註冊選有LVH 就是LVH
+    if (lvh === 'Y') {
+        formData.resting_ecg = 'LVH';
+    }
     
     try {
         const response = await fetchWithAuth('/api/v1/user/profile', {
@@ -197,6 +202,7 @@ async function fetchHealthSummary() {
         document.getElementById('avg-hr').textContent = data.overview.avg_hr;
         document.getElementById('max-hr').textContent = data.overview.max_hr;
         document.getElementById('st-slope').textContent = data.overview.st_slope;
+        document.getElementById('resting-ecg').textContent = data.overview.resting_ecg; //新增的resting_ecg
         document.getElementById('health-summary').textContent = data.ai_summary;
         
     } catch (error) {
