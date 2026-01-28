@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
+from flask import Flask
 import pandas as pd
+import sys
+import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import database
 
 # Base profile (later supplied by frontend)
 base_patient_info = {
@@ -30,6 +36,7 @@ def majority_vote(series):
 # Function that aggregates rest features
 def collect_rest(df: pd.DataFrame) -> dict:
     return {
+        "rest_max_hr": df["max_hr"].max(),
         "rest_mean_oldpeak": df["oldpeak"].mean(),
         "rest_resting_ecg_major": majority_vote(df["resting_ecg"]),
         "n_rest_windows": int(len(df)),
@@ -47,20 +54,68 @@ def collect_exercise(df: pd.DataFrame) -> dict:
 
 # TODO: check how to use window features and implement this.
 # Also, I should process the rest/exercise issue.
-def collect_features() -> dict:
-    # from model input features
-    return None
+def collect_features(df: pd.DataFrame, debug: bool = False, model_input_path: str = "../results_csv/model_input_features.csv", collectd_path: str = "../results_csv/collectd_features.csv") -> dict:
+    global base_patient_info
+    rest_feat = {}
+    ex_feat = {}
+    
+    if not df.empty:
+        df_rest = df[df["file"].astype(str).str.startswith("rest_")]
+        df_ex   = df[df["file"].astype(str).str.startswith("exercise_")]
+
+        if not df_rest.empty:
+            rest_feat = collect_rest(df_rest)
+        if not df_ex.empty:
+            ex_feat   = collect_exercise(df_ex)
+    # print("rest features:", rest_feat)
+    # print("exercise features:", ex_feat)
+    if rest_feat and ex_feat:
+        # Delta oldpeak between exercise and rest
+        delta_oldpeak = ex_feat["ex_mean_oldpeak"] - rest_feat["rest_mean_oldpeak"]
+        # Infer ST_Slope from exercise ratios
+        ex_st_slope = ex_feat["ex_st_slope_major"]
+    else:
+        delta_oldpeak = 0.0
+        ex_st_slope = "Flat"
+
+    # Write aggregated features
+    collectd = {}
+    for k, v in rest_feat.items():
+        collectd[k] = v
+    for k, v in ex_feat.items():
+        collectd[k] = v
+    collectd["delta_oldpeak"] = float(delta_oldpeak)
+    collectd["ex_st_slope_major"] = ex_st_slope
+    if debug:
+        pd.DataFrame([collectd]).to_csv(collectd_path, index=False, encoding="utf-8-sig")
+
+    # Export Final model input 
+    model_input = base_patient_info.copy()
+    model_input["MaxHR"] = float(ex_feat.get("ex_max_hr", rest_feat.get("rest_max_hr", 0)))
+    model_input["ST_Slope"] = ex_st_slope
+    model_input["Oldpeak"] = float(delta_oldpeak)
+    model_input["RestingECG"] = rest_feat.get("rest_resting_ecg_major", "Normal")
+
+    if debug:
+        print("[DONE] Aggregation finished")
+        print(" collectd_features.csv:", collectd_path)
+        print(" model_input_features.csv:", model_input_path)
+        print(" n_rest_windows =", rest_feat.get("n_rest_windows", 0),
+            "| n_ex_windows =", ex_feat["n_ex_windows"],
+            "| delta_oldpeak =", float(delta_oldpeak),
+            "| ST_Slope =", ex_st_slope,
+            "| MaxHR =", model_input["MaxHR"])
+
+    return model_input
 
 def main():
+    global base_patient_info
     base_dir = Path(__file__).resolve().parent
-    
-    # Load per-window features produced by address_features.py
-    in_csv = base_dir / "results_csv" / "window_features.csv"
-    if not in_csv.exists():
-        raise FileNotFoundError(f"missing {in_csv}")
-    
     out_dir = base_dir / "results_csv"
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    input_csv = out_dir / "window_features.csv"
+    df = pd.read_csv(input_csv)
     
     model_input_path = out_dir / "model_input_features.csv"
     if not model_input_path.exists():
@@ -73,70 +128,9 @@ def main():
     base_patient_info["ChestPainType"] = str(ipt.iloc[0]["ChestPainType"])
     base_patient_info["ExerciseAngina"] = str(ipt.iloc[0]["ExerciseAngina"])
 
-    df = pd.read_csv(in_csv)
-    try:
-        if df.empty:
-            raise ValueError("window_features.csv is empty")
-
-        # Split by filename prefix (This should be modified we should use a variable to classify rest/exercise)
-        df_rest = df[df["file"].astype(str).str.startswith("rest_")]
-        df_ex   = df[df["file"].astype(str).str.startswith("exercise_")]
-
-        if df_rest.empty:
-            raise ValueError("no rows starting with rest_")
-        if df_ex.empty:
-            raise ValueError("no rows starting with exercise_")
-
-        rest_feat = collect_rest(df_rest)
-        ex_feat   = collect_exercise(df_ex)
-    except:
-        rest_feat = {
-            "rest_mean_oldpeak": 0.0,
-            "rest_resting_ecg_major": "Normal",
-            "n_rest_windows": 0,
-        }
-        ex_feat = {
-            "ex_max_hr": 0.0,
-            "ex_mean_oldpeak": 0.0,
-            "ex_st_slope_major": "Up",
-            "n_ex_windows": 0,
-        }
-
-    # Delta oldpeak between exercise and rest
-    delta_oldpeak = ex_feat["ex_mean_oldpeak"] - rest_feat["rest_mean_oldpeak"]
-
-    # Infer ST_Slope from exercise ratios
-    ex_st_slope = ex_feat["ex_st_slope_major"]
-
-    # Write aggregated features
-    collectd = {}
-    for k, v in rest_feat.items():
-        collectd[k] = v
-    for k, v in ex_feat.items():
-        collectd[k] = v
-    collectd["delta_oldpeak"] = float(delta_oldpeak)
-    collectd["ex_st_slope_major"] = ex_st_slope
-
     collectd_path = out_dir / "collectd_features.csv"
-    pd.DataFrame([collectd]).to_csv(collectd_path, index=False, encoding="utf-8-sig")
-
-    # Export Final model input 
-    model_input = base_patient_info.copy()
-    model_input["MaxHR"] = float(ex_feat["ex_max_hr"])
-    model_input["ST_Slope"] = ex_st_slope
-    model_input["Oldpeak"] = float(delta_oldpeak)
-    model_input["RestingECG"] = rest_feat["rest_resting_ecg_major"]
-
+    model_input = collect_features(df, True, model_input_path, collectd_path)
     pd.DataFrame([model_input]).to_csv(model_input_path, index=False, encoding="utf-8-sig")
-
-    print("[DONE] Aggregation finished")
-    print(" collectd_features.csv:", collectd_path)
-    print(" model_input_features.csv:", model_input_path)
-    print(" n_rest_windows =", rest_feat["n_rest_windows"],
-          "| n_ex_windows =", ex_feat["n_ex_windows"],
-          "| delta_oldpeak =", float(delta_oldpeak),
-          "| ST_Slope =", ex_st_slope,
-          "| MaxHR =", float(ex_feat["ex_max_hr"]))
 
 if __name__ == "__main__":
     main()

@@ -49,6 +49,16 @@ def add_security_headers(response):
 #     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
 #     return send_from_directory(frontend_dir, 'index.html')
 
+# @app.route('/style.css', methods=['GET'])
+# def serve_frontend():
+#     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
+#     return send_from_directory(frontend_dir, 'style.css')
+
+# @app.route('/script.js', methods=['GET'])
+# def serve_script():
+#     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
+#     return send_from_directory(frontend_dir, 'script.js')
+
 # --- Authentication Endpoints ---
 @app.route('/api/auth/google', methods=['POST'])
 def auth_google():
@@ -137,7 +147,7 @@ def get_health_risk():
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
-    return jsonify(result_data.get_health_risk())
+    return jsonify(result_data.get_health_risk(database.get_window_features(user_data["id"])))
 
 @app.route('/api/v1/charts/bp', methods=['GET'])
 def get_chart_bp():

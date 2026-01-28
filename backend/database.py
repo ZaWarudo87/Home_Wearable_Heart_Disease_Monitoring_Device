@@ -1,6 +1,6 @@
 import argparse
 import os
-import random
+import pandas as pd
 
 from bisect import bisect_left
 from datetime import datetime, timedelta
@@ -30,6 +30,7 @@ class User(db.Model):
     profile = db.relationship('UserProfile', backref='user', uselist=False, cascade='all, delete-orphan')
     health_records = db.relationship('HealthRecord', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     hr_records = db.relationship('HRRecord', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    window_features = db.relationship('WindowFeature', backref='user', lazy='dynamic', cascade='all, delete-orphan')
 
 
 class UserProfile(db.Model):
@@ -62,6 +63,22 @@ class HRRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     heart_rate = db.Column(db.Float, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.now)
+
+
+class WindowFeature(db.Model):
+    __tablename__ = 'window_features'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    file = db.Column(db.String(255), nullable=False)
+    fs_hz = db.Column(db.Float, nullable=False)
+    max_hr = db.Column(db.Float, nullable=False)
+    avg_hr = db.Column(db.Float, nullable=False)
+    st_label = db.Column(db.String(50))
+    oldpeak = db.Column(db.Float, nullable=False)
+    resting_ecg = db.Column(db.String(50), nullable=False)
+    calc_time = db.Column(db.Float, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.now)
 
 
@@ -265,6 +282,55 @@ def get_chart_data(user_id: int, points: int, data_type: str = 'hr') -> dict:
     return {"labels": labels, "values": values}
 
 
+# ==================== Window Feature Functions ====================
+
+def add_window_feature(user_id: int, data: dict) -> dict:
+    if user_id == -1:
+        user_id = now_user_id
+    
+    # Keep only the latest 8192 records, delete older ones
+    current_count = WindowFeature.query.filter_by(user_id=user_id).count()
+    if current_count >= 8192:
+        records_to_delete = current_count - 8192 + 1
+        old_records = WindowFeature.query.filter_by(user_id=user_id)\
+            .order_by(WindowFeature.timestamp.asc())\
+            .limit(records_to_delete).all()
+        for record in old_records:
+            db.session.delete(record)
+    
+    feature = WindowFeature(
+        user_id=user_id,
+        file=data.get('file', ''),
+        fs_hz=data.get('fs_hz', 0.0),
+        max_hr=data.get('max_hr', 0.0),
+        avg_hr=data.get('avg_hr', 0.0),
+        st_label=data.get('st_label'),
+        oldpeak=data.get('oldpeak', 0.0),
+        resting_ecg=data.get('resting_ecg', ''),
+        calc_time=data.get('calc_time', 0.0)
+    )
+    db.session.add(feature)
+    db.session.commit()
+    return {"message": "Window feature added successfully"}
+
+
+def get_window_features(user_id: int = now_user_id) -> pd.DataFrame:
+    records = WindowFeature.query.filter_by(user_id=user_id)\
+        .order_by(WindowFeature.timestamp.desc()).all()
+    
+    return pd.DataFrame([{
+        'file': r.file,
+        'fs_hz': r.fs_hz,
+        'max_hr': r.max_hr,
+        'avg_hr': r.avg_hr,
+        'st_label': r.st_label,
+        'oldpeak': r.oldpeak,
+        'resting_ecg': r.resting_ecg,
+        'calc_time': r.calc_time,
+        'timestamp': r.timestamp.isoformat()
+    } for r in records])
+
+
 # ==================== Health Summary Functions ====================
 
 def get_health_summary(user_id: int) -> dict:
@@ -280,13 +346,11 @@ def get_health_summary(user_id: int) -> dict:
     
     if hr_records:
         avg_hr = sum(r.heart_rate for r in hr_records) // len(hr_records)
-        # max_hr = max(r.heart_rate for r in hr_records)
     else:
-        avg_hr = random.randint(70, 80)
-        # max_hr = random.randint(150, 160)
+        avg_hr = 0
     
-    resting_bp = latest_health.resting_bp if latest_health else random.randint(115, 125)
-
+    resting_bp = latest_health.resting_bp if latest_health else 0
+    
     global now_user_id
     now_user_id = user_id
     user_info = {}
@@ -295,10 +359,7 @@ def get_health_summary(user_id: int) -> dict:
     user_info["ChestPainType"] = UserProfile.query.filter_by(user_id=user_id).first().chest_pain_type if UserProfile.query.filter_by(user_id=user_id).first() else "ASY"
     user_info["ExerciseAngina"] = UserProfile.query.filter_by(user_id=user_id).first().exercise_angina if UserProfile.query.filter_by(user_id=user_id).first() else 0
     user_info["ExerciseAngina"] = "Y" if user_info["ExerciseAngina"] != 0 else "N"
-    user_info["RestingBP"] = resting_bp
-    user_info["Cholesterol"] = latest_health.cholesterol if latest_health else random.randint(150, 200)
-    user_info["FastingBS"] = latest_health.fasting_bs if latest_health else 0
-    user_other_info = result_data.parse_user_info(user_info)
+    user_other_info = result_data.parse_user_info(user_info, get_window_features())
 
     update_hr_record()
     
@@ -307,9 +368,10 @@ def get_health_summary(user_id: int) -> dict:
         "overview": {
             "resting_bp": resting_bp,
             "avg_hr": avg_hr,
-            "max_hr": user_other_info["max_hr"],
-            "oldpeak": user_other_info["oldpeak"],
-            "st_slope": user_other_info["st_slope"]
+            "max_hr": user_other_info["MaxHR"],
+            "oldpeak": user_other_info["Oldpeak"],
+            "st_slope": user_other_info["ST_Slope"],
+            "resting_ecg": user_other_info["RestingECG"]
         },
         "ai_summary": "這是來自 Python 後端的 AI 健康建議。請保持規律運動並監測您的心率。"
     }
@@ -329,6 +391,10 @@ def clear_hr_records():
 
 def clear_health_records():
     db.session.query(HealthRecord).delete()
+    db.session.commit()
+
+def clear_window_features():
+    WindowFeature.query.delete()
     db.session.commit()
 
 def show_all_tables():
@@ -385,6 +451,19 @@ def show_all_tables():
     else:
         print("(No HR records found)")
     
+    # Window Features table
+    window_features = WindowFeature.query.order_by(WindowFeature.timestamp.desc()).limit(10).all()
+    total_wf = WindowFeature.query.count()
+    print(f"\nWINDOW FEATURES ({total_wf} total, showing last 10)")
+    print("-" * 100)
+    if window_features:
+        print(f"{'ID':<5} {'UID':<3} {'Max HR':<8} {'Avg HR':<8} {'ST Label':<10} {'Oldpeak':<8} {'RestingECG':<10} {'Timestamp':<19}")
+        print("-" * 100)
+        for record in window_features:
+            print(f"{record.id:<5} {record.user_id:<3} {record.max_hr:<8.1f} {record.avg_hr:<8.1f} {record.st_label or 'N/A':<10} {record.oldpeak:<8.1f} {record.resting_ecg:<10} {record.timestamp.strftime('%Y-%m-%d %H:%M:%S'):<19}")
+    else:
+        print("(No window features found)")
+    
     print("\n" + "="*80)
 
 def delete_user_by_id(user_id: int):
@@ -410,7 +489,8 @@ if __name__ == '__main__':
                                             'clear_database',
                                             'delete_user',
                                             'clear_hr_records',
-                                            'clear_health_records'], 
+                                            'clear_health_records',
+                                            'clear_window_features'], 
                        help='Database command to execute')
     parser.add_argument('--user_id', type=int, help='User ID to delete (required for delete_user command)')
     
@@ -436,4 +516,8 @@ if __name__ == '__main__':
             print("HR records cleared successfully!")
         elif args.command == 'clear_health_records':
             clear_health_records()
+            print("Health records cleared successfully!")
+        elif args.command == 'clear_window_features':
+            clear_window_features()
+            print("Window features cleared successfully!")
             print("Health records cleared successfully!")

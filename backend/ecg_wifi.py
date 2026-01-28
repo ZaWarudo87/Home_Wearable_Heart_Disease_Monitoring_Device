@@ -15,11 +15,11 @@ import pan_tompkins_plus_plus.address_features as af
 flask_app = None
 
 # --- Configuration ---
-ESP32_IP = '10.136.187.188' 
+ESP32_IP = '127.0.0.1' # '10.136.187.188' 
 PORT = 80
 WINDOW_SECONDS = 10  # How many seconds to show on the live graph
 SAVE_DATA = False
-CSV_PATH = "pan_tompkins_plus_plus/results_csv/window_features.csv"
+# CSV_PATH = "pan_tompkins_plus_plus/results_csv/window_features.csv"
 
 # Data storage
 all_times = []
@@ -64,9 +64,15 @@ def update_now_ecg(data: dict) -> None:
         ecg_data_cache.clear()
     ecg_data_cache.append(now_ecg_data["avg_hr"])
 
-    # TODO: remove this poopoo
-    with open(CSV_PATH, "a") as f:
-        f.write(f"{now_ecg_data['file']},{now_ecg_data['fs_hz']},{now_ecg_data['max_hr']},{now_ecg_data['avg_hr']},{now_ecg_data['st_label']},{now_ecg_data['oldpeak']},{now_ecg_data['resting_ecg']},{now_ecg_data['calc_time']}\n")
+    if flask_app is not None:
+        with flask_app.app_context():
+            try:
+                database.add_window_feature(
+                    user_id=database.now_user_id,
+                    data=now_ecg_data
+                )
+            except Exception as e:
+                print(f"Error saving window feature: {e}")
 
 def update(frame):
     global last_ts, last_ecg_chunk, last_temp_chunk, is_exercise
@@ -148,14 +154,16 @@ def main() -> None:
         except ConnectionRefusedError:
             print("Connection refused, retrying in 1 second...")
             time.sleep(1)
+        except socket.timeout:
+            print("Connection timed out, retrying in 1 second...")
+            time.sleep(1)
     socket_file = client_socket.makefile('r')
 
     start_timestamp = time.time()
     last_ts = start_timestamp
 
-    # TODO: remove this poopoo
-    with open(CSV_PATH, "w") as f:
-        f.write("file,fs_hz,max_hr,avg_hr,st_label,oldpeak,resting_ecg,calc_time\n")
+    # with open(CSV_PATH, "w") as f:
+    #     f.write("file,fs_hz,max_hr,avg_hr,st_label,oldpeak,resting_ecg,calc_time\n")
 
     try:
         if SAVE_DATA:
