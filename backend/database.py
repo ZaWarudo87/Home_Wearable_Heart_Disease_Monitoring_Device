@@ -41,7 +41,7 @@ class UserProfile(db.Model):
     age = db.Column(db.Integer, nullable=False)
     chest_pain_type = db.Column(db.String(50), nullable=False)
     exercise_angina = db.Column(db.Boolean, nullable=False)
-    resting_ecg = db.Column(db.String(20), nullable=True)  # 新增: Normal / ST / LVH
+    resting_ecg = db.Column(db.String(20), nullable=True)  # add: LVH or none
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
