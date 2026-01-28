@@ -14,24 +14,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier,
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 
-# Optional (if installed)
-try:
-    from xgboost import XGBClassifier
-    HAS_XGB = True
-except Exception:
-    HAS_XGB = False
-
-try:
-    from lightgbm import LGBMClassifier
-    HAS_LGBM = True
-except Exception:
-    HAS_LGBM = False
-
-try:
-    from catboost import CatBoostClassifier
-    HAS_CAT = True
-except Exception:
-    HAS_CAT = False
+from catboost import CatBoostClassifier
 
 
 # ==================== Config ====================
@@ -39,10 +22,10 @@ RANDOM_STATE = 369
 TOP_K = 3
 
 # Keep only the features you said you need
-FEATURES = ['Age', 'Sex', 'ChestPainType', 'MaxHR', 'ExerciseAngina', 'Oldpeak', 'ST_Slope']
+FEATURES = ['Age', 'Sex', 'ChestPainType', 'MaxHR', 'ExerciseAngina', 'Oldpeak', 'ST_Slope', 'RestingECG']
 TARGET = 'HeartDisease'
 
-CAT_COL = ['Sex', 'ChestPainType', 'ExerciseAngina', 'ST_Slope']
+CAT_COL = ['Sex', 'ChestPainType', 'ExerciseAngina', 'ST_Slope', 'RestingECG']
 NUM_COL = ['Age', 'MaxHR', 'Oldpeak']
 
 # ==================== Load Data ====================
@@ -90,18 +73,9 @@ models.append(("new_HistGradientBoosting", HistGradientBoostingClassifier(random
 models.append(("new_SVC", SVC(probability=True, random_state=RANDOM_STATE)))
 models.append(("new_KNN", KNeighborsClassifier()))
 
-if HAS_XGB:
-    models.append(("new_XGBoost", XGBClassifier(
-        random_state=RANDOM_STATE,
-        eval_metric="logloss",
-        use_label_encoder=False
-    )))
 
-if HAS_LGBM:
-    models.append(("new_LightGBM", LGBMClassifier(verbose=-1, random_state=RANDOM_STATE)))
 
-if HAS_CAT:
-    models.append(("new_CatBoost", CatBoostClassifier(verbose=False, random_state=RANDOM_STATE)))
+models.append(("new_CatBoost", CatBoostClassifier(verbose=False, random_state=RANDOM_STATE)))
 
 
 # ==================== CV Evaluate ====================
@@ -144,13 +118,18 @@ top_df = results_df.head(TOP_K).copy()
 print(f"\n==================== Top {TOP_K} Models ====================")
 print(top_df[["name", "test_accuracy", "test_roc_auc"]].to_string(index=False))
 
-for name in top_df["name"].tolist():
+top_names = top_df["name"].tolist()
+proba_list = []
+for name in top_names:
     print(f"\nTraining full data and predicting test for: {name}")
     pipe = pipelines[name]
     pipe.fit(X_train_raw, y_train)
     joblib.dump(pipe, f"{name}.pkl")
     print(f"Saved model: {name}.pkl")
     pred = pipe.predict(X_test_raw)
+    if hasattr(pipe, "predict_proba"):
+        proba = pipe.predict_proba(X_test_raw)
+        proba_list.append(proba[:, 1] if proba.shape[1] >= 2 else proba[:, 0])
 
     sub = pd.DataFrame({
         "id": np.arange(len(pred), dtype=int),
@@ -159,4 +138,16 @@ for name in top_df["name"].tolist():
 
     out_path = f"{name}_submission.csv"   # already has "new_" prefix in name
     sub.to_csv(out_path, index=False)
+    print(f"Saved: {out_path}")
+
+# ==================== Ensemble mean proba (top-3) ====================
+if proba_list:
+    mean_proba = np.mean(np.stack(proba_list, axis=0), axis=0)
+    pred_mean = (mean_proba >= 0.5).astype(int)
+    sub_mean = pd.DataFrame({
+        "id": np.arange(len(pred_mean), dtype=int),
+        "HeartDisease": pred_mean.astype(int)
+    })
+    out_path = "new_ensemble_mean_proba_submission.csv"
+    sub_mean.to_csv(out_path, index=False)
     print(f"Saved: {out_path}")
