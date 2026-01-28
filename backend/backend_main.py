@@ -94,7 +94,8 @@ def create_user_profile():
         "sex": data["sex"],
         "age": data["age"],
         "chest_pain_type": data["chest_pain_type"],
-        "exercise_angina": data["exercise_angina"]
+        "exercise_angina": data["exercise_angina"],
+        "resting_ecg": data.get("resting_ecg")  # add: get resting_ecg is LVH from user
     }
     return jsonify(database.update_userdata(user_data["id"], profile_data))
 

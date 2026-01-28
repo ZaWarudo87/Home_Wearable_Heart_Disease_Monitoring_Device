@@ -28,6 +28,7 @@ def parse_user_info(user_info: dict) -> dict:
     return_dict["max_hr"] = int(updated_user_info_csv.iloc[0]["MaxHR"])
     return_dict["oldpeak"] = float(updated_user_info_csv.iloc[0]["Oldpeak"])
     return_dict["st_slope"] = str(updated_user_info_csv.iloc[0]["ST_Slope"])
+    return_dict["resting_ecg"] = str(updated_user_info_csv.iloc[0]["RestingECG"])  # add: get resting_ecg result
     return return_dict
 
 def update_data() -> dict:

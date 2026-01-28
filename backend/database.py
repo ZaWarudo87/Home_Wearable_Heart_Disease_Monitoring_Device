@@ -41,6 +41,7 @@ class UserProfile(db.Model):
     age = db.Column(db.Integer, nullable=False)
     chest_pain_type = db.Column(db.String(50), nullable=False)
     exercise_angina = db.Column(db.Boolean, nullable=False)
+    resting_ecg = db.Column(db.String(20), nullable=True)  # 新增: Normal / ST / LVH
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -108,6 +109,8 @@ def update_userdata(user_id: int, data: dict) -> dict:
         user.profile.age = data["age"]
         user.profile.chest_pain_type = data["chest_pain_type"]
         user.profile.exercise_angina = data["exercise_angina"]
+        if "resting_ecg" in data:  # add: save  if user has LVH
+            user.profile.resting_ecg = data["resting_ecg"]
     else:
         # Create new profile
         profile = UserProfile(
@@ -115,7 +118,8 @@ def update_userdata(user_id: int, data: dict) -> dict:
             sex=data["sex"],
             age=data["age"],
             chest_pain_type=data["chest_pain_type"],
-            exercise_angina=data["exercise_angina"]
+            exercise_angina=data["exercise_angina"],
+            resting_ecg=data.get("resting_ecg")  # add: RestingECG (LVH or none)
         )
         db.session.add(profile)
     
@@ -295,10 +299,15 @@ def get_health_summary(user_id: int) -> dict:
     user_info["ChestPainType"] = UserProfile.query.filter_by(user_id=user_id).first().chest_pain_type if UserProfile.query.filter_by(user_id=user_id).first() else "ASY"
     user_info["ExerciseAngina"] = UserProfile.query.filter_by(user_id=user_id).first().exercise_angina if UserProfile.query.filter_by(user_id=user_id).first() else 0
     user_info["ExerciseAngina"] = "Y" if user_info["ExerciseAngina"] != 0 else "N"
+    user_info["RestingECG"] = UserProfile.query.filter_by(user_id=user_id).first().resting_ecg if UserProfile.query.filter_by(user_id=user_id).first() else None  # add : get users LVH　result 
     user_info["RestingBP"] = resting_bp
     user_info["Cholesterol"] = latest_health.cholesterol if latest_health else random.randint(150, 200)
     user_info["FastingBS"] = latest_health.fasting_bs if latest_health else 0
     user_other_info = result_data.parse_user_info(user_info)
+    
+    # add: if LVH than LVH, if none LVH use result we calculate
+    resting_ecg_value = user_info.get("RestingECG") or user_other_info.get("resting_ecg")  
+                                                                                           
 
     update_hr_record()
     
@@ -309,7 +318,8 @@ def get_health_summary(user_id: int) -> dict:
             "avg_hr": avg_hr,
             "max_hr": user_other_info["max_hr"],
             "oldpeak": user_other_info["oldpeak"],
-            "st_slope": user_other_info["st_slope"]
+            "st_slope": user_other_info["st_slope"],
+            "resting_ecg": resting_ecg_value  # add: frontend print RestingECG
         },
         "ai_summary": "這是來自 Python 後端的 AI 健康建議。請保持規律運動並監測您的心率。"
     }
