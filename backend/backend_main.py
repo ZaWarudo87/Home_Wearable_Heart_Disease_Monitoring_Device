@@ -95,7 +95,7 @@ def create_user_profile():
         abort(status_code, message)
     data = request.json
     
-    required_fields = ['sex', 'age', 'chest_pain_type', 'exercise_angina']
+    required_fields = ['sex', 'age', 'chest_pain_type', 'exercise_angina', 'resting_ecg']
     for field in required_fields:
         if field not in data:
             abort(400, f'Missing required field: {field}')
@@ -105,7 +105,7 @@ def create_user_profile():
         "age": data["age"],
         "chest_pain_type": data["chest_pain_type"],
         "exercise_angina": data["exercise_angina"],
-        "resting_ecg": data.get("resting_ecg")  # add: get resting_ecg is LVH from user
+        "resting_ecg": data["resting_ecg"]
     }
     return jsonify(database.update_userdata(user_data["id"], profile_data))
 

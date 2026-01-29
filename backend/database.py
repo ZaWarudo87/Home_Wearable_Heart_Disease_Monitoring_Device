@@ -42,7 +42,7 @@ class UserProfile(db.Model):
     age = db.Column(db.Integer, nullable=False)
     chest_pain_type = db.Column(db.String(50), nullable=False)
     exercise_angina = db.Column(db.Boolean, nullable=False)
-    resting_ecg = db.Column(db.String(20), nullable=True)  # add: LVH or none
+    resting_ecg = db.Column(db.Boolean, nullable=False)  # True if LVH
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -126,8 +126,7 @@ def update_userdata(user_id: int, data: dict) -> dict:
         user.profile.age = data["age"]
         user.profile.chest_pain_type = data["chest_pain_type"]
         user.profile.exercise_angina = data["exercise_angina"]
-        if "resting_ecg" in data:  # add: save  if user has LVH
-            user.profile.resting_ecg = data["resting_ecg"]
+        user.profile.resting_ecg = data["resting_ecg"]
     else:
         # Create new profile
         profile = UserProfile(
@@ -136,7 +135,7 @@ def update_userdata(user_id: int, data: dict) -> dict:
             age=data["age"],
             chest_pain_type=data["chest_pain_type"],
             exercise_angina=data["exercise_angina"],
-            resting_ecg=data.get("resting_ecg")  # add: RestingECG (LVH or none)
+            resting_ecg=data["resting_ecg"]
         )
         db.session.add(profile)
     
@@ -365,7 +364,13 @@ def get_health_summary(user_id: int) -> dict:
     user_info["ExerciseAngina"] = "Y" if user_info["ExerciseAngina"] != 0 else "N"
     user_other_info = result_data.parse_user_info(user_info, get_window_features())
     # add: if LVH than LVH, if none LVH use result we calculate
-    resting_ecg_value = user_info.get("RestingECG") or user_other_info.get("resting_ecg")
+    if user_info.get("RestingECG"):
+        resting_ecg_value = "LVH"
+    else:
+        resting_ecg_value = user_other_info.get("RestingECG")
+    print("User RestingECG from profile:", user_info.get("RestingECG"))
+    print("Calculated RestingECG from features:", user_other_info.get("RestingECG"))
+    print("RestingECG value for summary:", resting_ecg_value)
 
     update_hr_record()
     
@@ -377,7 +382,7 @@ def get_health_summary(user_id: int) -> dict:
             "max_hr": user_other_info["MaxHR"],
             "oldpeak": user_other_info["Oldpeak"],
             "st_slope": user_other_info["ST_Slope"],
-            "resting_ecg": resting_ecg_value  # add: frontend print RestingECG
+            "resting_ecg": resting_ecg_value
         },
         "ai_summary": "這是來自 Python 後端的 AI 健康建議。請保持規律運動並監測您的心率。"
     }
@@ -425,10 +430,10 @@ def show_all_tables():
     print(f"\nUSER PROFILES ({len(profiles)} records)")
     print("-" * 60)
     if profiles:
-        print(f"{'ID':<5} {'User ID':<8} {'Sex':<5} {'Age':<5} {'Chest Pain':<15} {'Ex.Angina':<10}")
+        print(f"{'ID':<5} {'User ID':<8} {'Sex':<5} {'Age':<5} {'Chest Pain':<15} {'Ex.Angina':<10} {'Resting ECG':<10}")
         print("-" * 60)
         for profile in profiles:
-            print(f"{profile.id:<5} {profile.user_id:<8} {profile.sex:<5} {profile.age:<5} {profile.chest_pain_type[:14]:<15} {profile.exercise_angina:<10}")
+            print(f"{profile.id:<5} {profile.user_id:<8} {profile.sex:<5} {profile.age:<5} {profile.chest_pain_type[:14]:<15} {profile.exercise_angina:<10} {profile.resting_ecg:<10}")
     else:
         print("(No profiles found)")
     

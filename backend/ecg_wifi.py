@@ -19,6 +19,10 @@ ESP32_IP = '127.0.0.1' # '10.136.187.188'
 PORT = 80
 WINDOW_SECONDS = 10  # How many seconds to show on the live graph
 SAVE_DATA = False
+# Reconnection settings
+RECONNECT_DELAY = 2  # seconds to wait before reconnecting
+MAX_RECONNECT_ATTEMPTS = 10  # 0 for infinite attempts
+CONNECTION_TIMEOUT = 5  # socket connection timeout
 # CSV_PATH = "pan_tompkins_plus_plus/results_csv/window_features.csv"
 
 # Data storage
@@ -40,13 +44,54 @@ now_ecg_data = {
     "resting_ecg": "ST",
     "calc_time": 0.0
 }
-is_exercise = False
+mode = "rest_ecg_data_"
 exec = ThreadPoolExecutor()
+
+# Connection state
+client_socket = None
+socket_file = None
+connection_lost = False
+reconnect_attempts = 0
 
 def init():
     ax.set_xlim(0, WINDOW_SECONDS)
     ax.set_ylim(-2, 5) 
     return line,
+
+def connect_to_esp32():
+    global client_socket, socket_file, connection_lost, reconnect_attempts
+    
+    print(f"Connecting to {ESP32_IP}:{PORT}...")
+    
+    try:
+        if client_socket:
+            try:
+                client_socket.close()
+            except:
+                pass
+        
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.settimeout(CONNECTION_TIMEOUT)
+        client_socket.connect((ESP32_IP, PORT))
+        socket_file = client_socket.makefile('r')
+        
+        connection_lost = False
+        reconnect_attempts = 0
+        print("Connection successful!")
+        return True
+        
+    except Exception as e:
+        print(f"Connection failed: {e}")
+        return False
+
+def reconnect():
+    global connection_lost
+    connection_lost = True
+    
+    print(f"Attempting to reconnect...")
+    time.sleep(RECONNECT_DELAY)
+    
+    return connect_to_esp32()
 
 def update_now_ecg(data: dict) -> None:
     global now_ecg_data, now_ecg_ts_min, ecg_data_cache, flask_app
@@ -67,22 +112,36 @@ def update_now_ecg(data: dict) -> None:
     if flask_app is not None:
         with flask_app.app_context():
             try:
-                database.add_window_feature(
-                    user_id=database.now_user_id,
-                    data=now_ecg_data
-                )
+                database.add_window_feature(database.now_user_id, now_ecg_data)
             except Exception as e:
                 print(f"Error saving window feature: {e}")
 
 def update(frame):
-    global last_ts, last_ecg_chunk, last_temp_chunk, is_exercise
+    global last_ts, last_ecg_chunk, last_temp_chunk, mode, connection_lost
+    
+    if connection_lost:
+        if not reconnect():
+            return line,
+    
     try:
+        if socket_file is None:
+            return line,
+            
         line_data = socket_file.readline().strip()
+        
+        if not line_data and not connection_lost:
+            try:
+                client_socket.send(b'\n')
+            except:
+                print("Connection lost detected, preparing to reconnect...")
+                connection_lost = True
+                return line,
+        
         if line_data:
             if line_data == "REST":
-                is_exercise = False
+                mode = "rest_ecg_data_"
             elif line_data == "EXERCISE":
-                is_exercise = True
+                mode = "exercise_ecg_data_"
             else:
                 val = float(line_data)
                 now_timestamp = time.time()
@@ -93,7 +152,7 @@ def update(frame):
                     last_temp_chunk = temp_times.copy()
                     ts = np.asarray(temp_times, dtype=float)
                     ecg = np.asarray(temp_values, dtype=float)
-                    exec.submit(af.calc_features, ts, ecg).add_done_callback(update_now_ecg)
+                    exec.submit(af.calc_features, ts, ecg, base=mode).add_done_callback(update_now_ecg)
 
                     temp_times.clear()
                     temp_values.clear()
@@ -117,8 +176,11 @@ def update(frame):
                     # Shift X-axis view
                     if now > WINDOW_SECONDS:
                         ax.set_xlim(now - WINDOW_SECONDS, now)
-    except Exception:
-        pass
+    except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError) as e:
+        print(f"Connection error: {e}")
+        connection_lost = True
+    except Exception as e:
+        print(f"Error updating data: {e}")
     return line,
 
 def get_points_chunk() -> list:
@@ -133,7 +195,7 @@ def get_heart_rate() -> float:
 
 # --- Run ---
 def main() -> None:
-    global fig, ax, line, socket_file, start_timestamp, last_ts
+    global fig, ax, line, start_timestamp, last_ts
 
     # --- Setup Plot ---
     fig, ax = plt.subplots()
@@ -144,20 +206,9 @@ def main() -> None:
     ax.grid(True)
 
     # --- Socket Connection ---
-    print(f"Connecting to {ESP32_IP}...")
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.settimeout(5)
-    while True:
-        try:
-            client_socket.connect((ESP32_IP, PORT))
-            break
-        except ConnectionRefusedError:
-            print("Connection refused, retrying in 1 second...")
-            time.sleep(1)
-        except socket.timeout:
-            print("Connection timed out, retrying in 1 second...")
-            time.sleep(1)
-    socket_file = client_socket.makefile('r')
+    while not connect_to_esp32():
+        print(f"Connection refused, retrying...")
+        time.sleep(RECONNECT_DELAY)
 
     start_timestamp = time.time()
     last_ts = start_timestamp
@@ -198,7 +249,16 @@ def main() -> None:
         else:
             print("No data was recorded.")
 
-        client_socket.close()
+        if client_socket:
+            try:
+                client_socket.close()
+            except:
+                pass
+        if socket_file:
+            try:
+                socket_file.close()
+            except:
+                pass
 
 if __name__ == "__main__":
     main()

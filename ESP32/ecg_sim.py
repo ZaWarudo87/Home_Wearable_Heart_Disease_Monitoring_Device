@@ -1,16 +1,15 @@
-import socket
-import time
 import csv
 import glob
 import os
 import random
-import sys
+import socket
+import time
 
 # --- config ---
 HOST = "0.0.0.0"
 PORT = 80
 DATA_FOLDER = "ECG_DATA"
-SAMPLE_INTERVAL = 0.002  # 2 ms between samples (500 Hz)
+SAMPLE_INTERVAL = 1 / 160  # 160 Hz
 
 def load_random_csv(folder: str) -> list:
     if not os.path.exists(folder):
@@ -73,6 +72,7 @@ def start_server() -> None:
             try:
                 data_index = 0
                 total_samples = len(ecg_data)
+                is_exercise = False
                 
                 print("Starting data stream...")
                 delta_time = time.time() - ecg_data[0][0]
@@ -85,7 +85,12 @@ def start_server() -> None:
                         time.sleep(0.0005)
                         elapsed = time.time() - delta_time
                     
-                    message = f"{val}\n"
+                    if random.random() < 0.001:
+                        is_exercise = not is_exercise
+                        message = "EXERCISE\n" if is_exercise else "REST\n"
+                        print(f"Mode changed to: {'EXERCISE' if is_exercise else 'REST'}")
+                    else:
+                        message = f"{val}\n"
                     client_socket.sendall(message.encode('utf-8'))
                         
             except (ConnectionResetError, BrokenPipeError):
