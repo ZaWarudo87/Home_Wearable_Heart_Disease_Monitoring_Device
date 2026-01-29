@@ -103,9 +103,9 @@ def predict(raw_df: pd.DataFrame, debug: bool = False) -> dict:
     info = cpuinfo.get_cpu_info()
     if not CALC_TIME_CSV.exists():
         with open(CALC_TIME_CSV, "w") as f:
-            f.write("cpu,calc_time_seconds\n")
+            f.write("cpu,calc_time_seconds,date\n")
     with open(CALC_TIME_CSV, "a") as f:
-        f.write(f"{info['brand_raw']} {info['arch']} {info['hz_advertised_friendly']},{calc_time}\n")
+        f.write(f"{info['brand_raw']} {info['arch']} {info['hz_advertised_friendly']},{calc_time},{time.strftime('%Y-%m-%d %H:%M:%S')}\n")
     return out_dict
 
 

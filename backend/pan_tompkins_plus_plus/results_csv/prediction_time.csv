@@ -1,5 +1,1 @@
-cpu,calc_time_seconds
-11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz X86_64 2.4000 GHz,20.28071928024292
-11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz X86_64 2.4000 GHz,6.516865968704224
-11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz X86_64 2.4000 GHz,10.528154850006104
-11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz X86_64 2.4000 GHz,0.7137703895568848
+cpu,calc_time_seconds,date
