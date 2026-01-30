@@ -18,10 +18,11 @@ services:
       - ../backend/ecg_wifi.py:/app/ecg_wifi.py
       - ../backend/gemini.py:/app/gemini.py
       - ../backend/login.py:/app/login.py
-      - ../backend/pan_tompins_plus_plus/address_features.py:/app/pan_tompins_plus_plus/address_features.py
-      - ../backend/pan_tompins_plus_plus/algos/pan_tompins_plus_plus.py:/app/pan_tompins_plus_plus/algos/pan_tompins_plus_plus.py
-      - ../backend/pan_tompins_plus_plus/collect_features.py:/app/pan_tompins_plus_plus/collect_features.py
-      - ../backend/pan_tompins_plus_plus/predict.py:/app/pan_tompins_plus_plus/predict.py
+      - ../backend/pan_tompkins_plus_plus/address_features.py:/app/pan_tompkins_plus_plus/address_features.py
+      - ../backend/pan_tompkins_plus_plus/algos/pan_tompkins_plus_plus.py:/app/pan_tompkins_plus_plus/algos/pan_tompkins_plus_plus.py
+      - ../backend/pan_tompkins_plus_plus/collect_features.py:/app/pan_tompkins_plus_plus/collect_features.py
+      - ../backend/pan_tompkins_plus_plus/predict.py:/app/pan_tompkins_plus_plus/predict.py
+      - ../backend/pan_tompkins_plus_plus/results_csv/prediction_time.csv:/app/pan_tompkins_plus_plus/results_csv/prediction_time.csv
       - ../backend/pseudo_data.py:/app/pseudo_data.py
       - ../backend/result_data.py:/app/result_data.py
       # Persist logs and database (use directory for db)

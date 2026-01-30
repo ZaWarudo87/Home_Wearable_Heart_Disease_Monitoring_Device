@@ -16,7 +16,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt --default-timeout=1000
 
-COPY backend/*.py .
+COPY backend/*.py ./
 COPY backend/pan_tompkins_plus_plus/ ./pan_tompkins_plus_plus/
 
 COPY docker/start.sh .

@@ -15,7 +15,7 @@ import pan_tompkins_plus_plus.address_features as af
 flask_app = None
 
 # --- Configuration ---
-ESP32_IP = '127.0.0.1' # '10.136.187.188' 
+ESP32_IP = '192.168.56.1'
 PORT = 80
 WINDOW_SECONDS = 10  # How many seconds to show on the live graph
 SAVE_DATA = False
