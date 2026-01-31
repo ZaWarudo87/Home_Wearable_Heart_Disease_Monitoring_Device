@@ -231,6 +231,30 @@ def ecg_stream(ws: Server):
     finally:
         print("Client disconnected.")
 
+# --- Health Advice by Gemini ---
+@app.route('/api/v1/health/advice', methods=['POST'])
+def post_health_advice():
+    # Check authentication
+    user_data = login.check_auth(request)
+    if "error" in user_data:
+        status_code, message = user_data["error"]
+        abort(status_code, message)
+
+    # Read request JSON body
+    data = request.json or {}
+    overview = data.get("overview")
+    if not isinstance(overview, dict):
+        abort(400, "Missing or invalid 'overview' (must be an object)")
+
+    payload = {
+        "overview": overview,
+        # "user_profile": data.get("user_profile"),
+        # "risk": data.get("risk"),
+    }
+
+    advice_text = gemini.health_summary(payload)
+    return jsonify({"ai_summary": advice_text})
+
 # --- Main ---
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)

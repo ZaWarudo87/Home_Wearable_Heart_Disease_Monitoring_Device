@@ -21,7 +21,7 @@ const MAX_ECG_POINTS = 300;
 const ECG_UPDATE_MS = 40;
 
 // --- API Base URL ---
-const API_BASE_URL = "https://desired-sizes-backup-remark.trycloudflare.com";
+const API_BASE_URL = "http://localhost:39244";
 
 // --- API Helper ---
 
@@ -189,21 +189,41 @@ async function initializeApp(user) {
 }
 
 async function fetchHealthSummary() {
-    try {
-        const data = await fetchWithAuth('/api/v1/health/summary');
-        
-        document.getElementById('last-update').textContent = `最後更新：${new Date(data.last_update).toLocaleString()}`;
-        document.getElementById('resting-bp').textContent = data.overview.resting_bp == 0 ? '--' : data.overview.resting_bp;
-        document.getElementById('avg-hr').textContent = data.overview.avg_hr == 0 ? '--' : data.overview.avg_hr;
-        document.getElementById('max-hr').textContent = data.overview.max_hr == 0 ? '--' : data.overview.max_hr;
-        document.getElementById('st-slope').textContent = data.overview.st_slope;
-        document.getElementById('resting-ecg').textContent = data.overview.resting_ecg;
-        document.getElementById('health-summary').textContent = data.ai_summary;
-        
-    } catch (error) {
-        console.error('Failed to fetch health summary:', error);
-        document.getElementById('health-summary').textContent = '資料載入失敗。';
-    }
+  try {
+    const data = await fetchWithAuth('/api/v1/health/summary');
+
+    document.getElementById('last-update').textContent =
+      `最後更新：${new Date(data.last_update).toLocaleString()}`;
+    document.getElementById('resting-bp').textContent = data.overview.resting_bp == 0 ? '--' : data.overview.resting_bp;
+    document.getElementById('avg-hr').textContent = data.overview.avg_hr == 0 ? '--' : data.overview.avg_hr;
+    document.getElementById('max-hr').textContent = data.overview.max_hr == 0 ? '--' : data.overview.max_hr;
+    document.getElementById('st-slope').textContent = data.overview.st_slope;
+    document.getElementById('resting-ecg').textContent = data.overview.resting_ecg;
+
+	// Placeholder for AI advice
+    const summaryEl = document.getElementById('health-summary');
+    summaryEl.textContent = '正在產生 AI 健康建議...';
+
+    (async () => {
+      try {
+        const advice = await fetchWithAuth('/api/v1/health/advice', {
+          method: 'POST',
+          body: JSON.stringify({ overview: data.overview })
+        });
+
+        if (!apiToken) return;
+
+        summaryEl.textContent = advice.ai_summary || '（沒有取得建議）';
+      } catch (e) {
+        console.error('Failed to fetch AI advice:', e);
+        summaryEl.textContent = 'AI 建議取得失敗，請稍後再試。';
+      }
+    })();
+
+  } catch (error) {
+    console.error('Failed to fetch health summary:', error);
+    document.getElementById('health-summary').textContent = '資料載入失敗。';
+  }
 }
 
 // --- Chart Functions ---
@@ -701,29 +721,13 @@ function mapToEditPanelValues(config) {
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', function() {
-    // 設置註冊表單監聽器
     document.getElementById('registration-form').addEventListener('submit', handleRegistrationSubmit);
-    
-    const token = sessionStorage.getItem('apiToken');
-    if (token) {
-        apiToken = token;
-        fetchWithAuth('/api/auth/me')
-            .then(data => {
-                if (data.is_new_user) {
-                    showRegistrationForm();
-                } else {
-                    initializeApp(data.user);
-                }
-            })
-            .catch(error => {
-                console.error("Session restore failed", error);
-                sessionStorage.removeItem('apiToken');
-                initializeGSI();
-            });
-    } else {
-        initializeGSI();
-    }
-    
+
+    // --- DEMO: skip Google login ---
+    apiToken = "DEMO_TOKEN";
+    sessionStorage.setItem("apiToken", apiToken);
+    initializeApp({ name: "Demo User" });
+
     if (window.elementSdk) {
         window.elementSdk.init({
             defaultConfig,
