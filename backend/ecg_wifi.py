@@ -41,7 +41,7 @@ def start_receiver():
                         if not line:
                             continue
 
-                        print(f"Received line: {line}")
+                        # print(f"Received line: {line}")
 
                         if "," not in line:
                             continue
