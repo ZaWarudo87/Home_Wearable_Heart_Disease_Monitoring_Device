@@ -40,12 +40,15 @@ def health_summary(
         system = (
             "你是健康助理。根據使用者的心臟健康指標，提供簡短、具體、非診斷性的建議。"
             "避免宣稱確診；若有危急徵象請提醒就醫。使用繁體中文。"
-            "輸出請以 3~6 點條列為主，最後加一句提醒此為一般建議非醫療診斷。"
+            "輸出請以 2~3 點條列為主，最後加一句提醒此為一般建議非醫療診斷。"
+            "輸出格式為純文字，不使用任何styling。"
         )
     else:
         system = (
-            "You are a health assistant. Provide brief, actionable, non-diagnostic advice. "
-            "Use bullet points. Add a disclaimer that this is not medical diagnosis."
+            "You are a health assistant. Provide short, specific, and non-diagnostic recommendations based on the user's heart health indicators."
+            "Avoid claiming a diagnosis; if there is a critical sign, please notify the doctor."
+            "Use English. Output in a list format with at least 2 points, followed by a general recommendation for non-medical diagnosis."
+            "Output should be pure text, without any styling."
         )
 
     prompt = system + "\n\n" + "User data (JSON):\n" + json.dumps(payload, ensure_ascii=False)
