@@ -4,6 +4,14 @@ import numpy as np
 import joblib
 
 from sklearn.model_selection import StratifiedKFold, cross_validate
+from sklearn.base import clone
+from sklearn.metrics import (
+    confusion_matrix,
+    accuracy_score,
+    precision_recall_fscore_support,
+    roc_auc_score,
+    mean_squared_error,
+)
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler, FunctionTransformer
@@ -20,6 +28,10 @@ from catboost import CatBoostClassifier
 # ==================== Config ====================
 RANDOM_STATE = 369
 TOP_K = 3
+CV_FOLDS = 5
+THRESH_MIN = 0.40
+THRESH_MAX = 0.60
+THRESH_STEP = 0.01
 
 # Keep only the features you said you need
 FEATURES = ['Age', 'Sex', 'ChestPainType', 'MaxHR', 'ExerciseAngina', 'Oldpeak', 'ST_Slope', 'RestingECG']
@@ -79,7 +91,7 @@ models.append(("new_CatBoost", CatBoostClassifier(verbose=False, random_state=RA
 
 
 # ==================== CV Evaluate ====================
-cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=RANDOM_STATE)
+cv = StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
 
 results = []
 pipelines = {}
@@ -116,7 +128,7 @@ print(results_df.to_string(index=False))
 # ==================== Pick Top-3 and Predict ====================
 top_df = results_df.head(TOP_K).copy()
 print(f"\n==================== Top {TOP_K} Models ====================")
-print(top_df[["name", "test_accuracy", "test_roc_auc"]].to_string(index=False))
+print(top_df[["name", "train_accuracy", "test_accuracy", "train_roc_auc", "test_roc_auc"]].to_string(index=False))
 
 top_names = top_df["name"].tolist()
 proba_list = []
@@ -126,19 +138,19 @@ for name in top_names:
     pipe.fit(X_train_raw, y_train)
     joblib.dump(pipe, f"{name}.pkl")
     print(f"Saved model: {name}.pkl")
-    pred = pipe.predict(X_test_raw)
+
+    pred_test = pipe.predict(X_test_raw)
     if hasattr(pipe, "predict_proba"):
         proba = pipe.predict_proba(X_test_raw)
         proba_list.append(proba[:, 1] if proba.shape[1] >= 2 else proba[:, 0])
 
-    sub = pd.DataFrame({
-        "id": np.arange(len(pred), dtype=int),
-        "HeartDisease": pred.astype(int)
+    test_out = pd.DataFrame({
+        "id": np.arange(len(pred_test), dtype=int),
+        "HeartDisease": pred_test.astype(int)
     })
-
-    out_path = f"{name}_submission.csv"   # already has "new_" prefix in name
-    sub.to_csv(out_path, index=False)
-    print(f"Saved: {out_path}")
+    test_path = f"{name}_submission.csv"   # already has "new_" prefix in name
+    test_out.to_csv(test_path, index=False)
+    print(f"Saved: {test_path}")
 
 # ==================== Ensemble mean proba (top-3) ====================
 if proba_list:
@@ -151,3 +163,83 @@ if proba_list:
     out_path = "new_ensemble_mean_proba_submission.csv"
     sub_mean.to_csv(out_path, index=False)
     print(f"Saved: {out_path}")
+
+# ==================== Ensemble CV train/test metrics (top-3) ====================
+fold_cache = []
+for tr_idx, va_idx in cv.split(X_train_raw, y_train):
+    X_tr = X_train_raw.iloc[tr_idx]
+    y_tr = y_train.iloc[tr_idx]
+    X_va = X_train_raw.iloc[va_idx]
+    y_va = y_train.iloc[va_idx]
+
+    fold_train_probs = []
+    fold_valid_probs = []
+    for name in top_names:
+        fold_pipe = clone(pipelines[name])
+        fold_pipe.fit(X_tr, y_tr)
+        p_tr = fold_pipe.predict_proba(X_tr)
+        p_va = fold_pipe.predict_proba(X_va)
+        fold_train_probs.append(p_tr[:, 1] if p_tr.shape[1] >= 2 else p_tr[:, 0])
+        fold_valid_probs.append(p_va[:, 1] if p_va.shape[1] >= 2 else p_va[:, 0])
+
+    fold_cache.append({
+        "y_tr": y_tr.to_numpy(),
+        "y_va": y_va.to_numpy(),
+        "p_tr": np.mean(np.stack(fold_train_probs, axis=0), axis=0),
+        "p_va": np.mean(np.stack(fold_valid_probs, axis=0), axis=0),
+    })
+
+
+def build_metrics(y_true, prob, threshold):
+    pred = (prob >= threshold).astype(int)
+    tn, fp, fn, tp = confusion_matrix(y_true, pred, labels=[0, 1]).ravel()
+    pr, rc, f1, _ = precision_recall_fscore_support(y_true, pred, average="binary", zero_division=0)
+    return {
+        "accuracy": accuracy_score(y_true, pred),
+        "precision": pr,
+        "recall": rc,
+        "f1": f1,
+        "auc": roc_auc_score(y_true, prob),
+        "rmse": np.sqrt(mean_squared_error(y_true, prob)),
+        "errors": int((pred != y_true).sum()),
+        "tn": int(tn),
+        "fp": int(fp),
+        "fn": int(fn),
+        "tp": int(tp),
+    }
+
+
+threshold_rows = []
+thresholds = np.arange(THRESH_MIN, THRESH_MAX + 1e-9, THRESH_STEP)
+for th in thresholds:
+    train_fold_metrics = [build_metrics(fc["y_tr"], fc["p_tr"], th) for fc in fold_cache]
+    test_fold_metrics = [build_metrics(fc["y_va"], fc["p_va"], th) for fc in fold_cache]
+
+    for split, ms in (("train_cv", train_fold_metrics), ("test_cv", test_fold_metrics)):
+        row = {
+            "model": "ensemble_top3_mean_proba",
+            "split": split,
+            "threshold": round(float(th), 2),
+        }
+        for k in ["accuracy", "precision", "recall", "f1", "auc", "rmse", "errors", "tn", "fp", "fn", "tp"]:
+            row[k] = float(np.mean([m[k] for m in ms]))
+        threshold_rows.append(row)
+
+threshold_df = pd.DataFrame(threshold_rows)
+threshold_csv = "new_ensemble_threshold_metrics.csv"
+threshold_df.to_csv(threshold_csv, index=False, encoding="utf-8-sig")
+print(f"Saved: {threshold_csv}")
+
+test_only = threshold_df[threshold_df["split"] == "test_cv"].copy()
+top5_acc = test_only.sort_values(["accuracy", "recall"], ascending=[False, False]).head(5)
+top5_recall = test_only.sort_values(["recall", "accuracy"], ascending=[False, False]).head(5)
+
+print("\n==================== Ensemble (Top-3 Mean Proba, CV) ====================")
+best_acc = top5_acc.iloc[0]
+print(f"best_test_accuracy threshold={best_acc['threshold']:.2f} acc={best_acc['accuracy']:.6f} recall={best_acc['recall']:.6f}")
+best_recall = top5_recall.iloc[0]
+print(f"best_test_recall   threshold={best_recall['threshold']:.2f} recall={best_recall['recall']:.6f} acc={best_recall['accuracy']:.6f}")
+print("\nTop-5 by test accuracy:")
+print(top5_acc[["threshold", "accuracy", "recall", "precision", "f1", "auc", "rmse"]].to_string(index=False))
+print("\nTop-5 by test recall:")
+print(top5_recall[["threshold", "accuracy", "recall", "precision", "f1", "auc", "rmse"]].to_string(index=False))

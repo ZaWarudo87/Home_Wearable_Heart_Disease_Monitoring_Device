@@ -72,7 +72,7 @@ def predict(raw_df: pd.DataFrame, debug: bool = False) -> dict:
         final_prob = round(final_prob, 2)
     risk_text = None
     if final_prob is not None:
-        risk_text = "高風險" if final_prob >= 0.5 else "低風險"
+        risk_text = "高風險" if final_prob >= 0.4 else "低風險"
 
     feature_map = raw_df.iloc[0].to_dict()
 
