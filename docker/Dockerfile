@@ -19,9 +19,6 @@ RUN pip install --no-cache-dir -r requirements.txt --default-timeout=1000
 COPY backend/*.py ./
 COPY backend/pan_tompkins_plus_plus/ ./pan_tompkins_plus_plus/
 
-# TODO: fill in your Gemini API key
-ENV GEMINI_API_KEY=YOUR_API_KEY_HERE
-
 COPY docker/start.sh .
 RUN sed -i 's/\r$//' start.sh && chmod +x start.sh
 

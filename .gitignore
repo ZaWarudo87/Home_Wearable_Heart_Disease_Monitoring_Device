@@ -46,9 +46,9 @@ backend/pan_tompkins_plus_plus/model/*.png
 # database
 backend/data
 
-# ESP-IDF
-ESP32/sdkconfig
-ESP32/build/
+# cloudflared
+*.pem
+.cloudflared/
 
 # venv
 venv/
