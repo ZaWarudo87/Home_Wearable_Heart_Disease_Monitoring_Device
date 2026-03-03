@@ -41,12 +41,13 @@ class AFCVDetector:
 
         # R-peak detector used to derive RR intervals.
         self._det = RpeakDetection()
-        # Rolling RR buffer in seconds (latest values only).
+        # save RR intervals for the current window; updated incrementally with each chunk.
         self._rr_intervals: list[float] = []
-        # Rolling raw decisions from latest computed windows.
+        # save result for voting
         self._af_history: deque[bool] = deque(maxlen=self.voting_windows)
-        # Number of new RR intervals since last AF evaluation.
+        # save count of new RR intervals since last evaluation to control update frequency.
         self._new_rr_since_eval = 0
+        
         # Last output returned by update(); preserved when current chunk is insufficient.
         self._last_result = {
             "af_detected": False,
