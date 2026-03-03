@@ -4,7 +4,7 @@ services:
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY} # from .env file
       - PYTHONUNBUFFERED=1
-    image: ghcr.io/zawarudo87/home-wearable-heart-disease-monitoring-device:latest
+    image: ghcr.io/zawarudo87/home_wearable_heart_disease_monitoring_device:latest
     networks:
       - heart-monitor-network
     ports:
@@ -26,7 +26,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
-    
+
 networks:
   heart-monitor-network:
     driver: bridge
