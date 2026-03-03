@@ -42,6 +42,8 @@ backend/ECG_DATA/
 # model outputs
 backend/pan_tompkins_plus_plus/model/*.csv
 backend/pan_tompkins_plus_plus/model/*.png
+catboost_info/
+backend/pan_tompkins_plus_plus/model/catboost_info/
 
 # database
 backend/data
