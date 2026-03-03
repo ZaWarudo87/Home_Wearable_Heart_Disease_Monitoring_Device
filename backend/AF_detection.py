@@ -7,19 +7,6 @@ from pan_tompkins_plus_plus.algos.pan_tompkins_plus_plus import (
 
 
 class AFCVDetector:
-    """
-    Streaming AF screening using ARR coefficient of variation (CV_ARR).
-
-    Core idea (from Tateno & Glass 2001, simplified for real-time use):
-    1) detect R peaks from ECG
-    2) derive RR intervals and ARR = diff(RR)
-    3) compute CV_ARR = std(ARR) / mean(RR) in a beat window
-    4) classify as AF if CV_ARR falls inside reference range
-
-    Note:
-    - This implementation is causal (uses latest window), suitable for streaming.
-    - It is a screening signal, not a clinical diagnosis.
-    """
 
     def __init__(
         self,
