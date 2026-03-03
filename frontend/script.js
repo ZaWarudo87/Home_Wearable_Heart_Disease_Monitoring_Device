@@ -206,6 +206,18 @@ async function fetchHealthSummary() {
     }
 }
 
+// #add: render AF status from websocket payload
+function updateAFStatus(afData) {
+    const detectedEl = document.getElementById('af-detected');
+    if (!detectedEl) return;
+    if (!afData) return;
+
+    const isAF = Boolean(afData.af_detected);
+    detectedEl.textContent = isAF ? '有風險' : '無風險';
+    detectedEl.classList.remove('text-gray-900', 'text-red-600', 'text-green-600');
+    detectedEl.classList.add(isAF ? 'text-red-600' : 'text-green-600');
+}
+
 // --- Chart Functions ---
 
 function switchTab(tabId) {
@@ -477,6 +489,7 @@ function connectWebSocket() {
             if(data.heart_rate){
                 document.getElementById('current-heart-rate').textContent = data.heart_rate;
             }
+            updateAFStatus(data.af); // #add: update AF block under RestingECG
         } catch (e) {
             console.error('Error parsing ECG data:', e);
         }

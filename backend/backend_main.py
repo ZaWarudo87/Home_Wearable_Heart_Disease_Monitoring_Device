@@ -191,7 +191,8 @@ def send_ecg_data(ws: Server):
         while True:
             points_chunk = ecg_wifi.get_points_chunk()
             heart_rate = ecg_wifi.get_heart_rate()
-            ws.send(json.dumps({"points": points_chunk, "heart_rate": heart_rate}))
+            af_result = ecg_wifi.get_af_result()  # add: include latest AF detection payload
+            ws.send(json.dumps({"points": points_chunk, "heart_rate": heart_rate, "af": af_result}))  # add: stream AF result to client
             time.sleep(0.16)
     except Exception as e:
         print(f"WebSocket send error or client disconnected: {e}")

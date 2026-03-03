@@ -10,6 +10,7 @@ from matplotlib.animation import FuncAnimation
 
 import database
 import pan_tompkins_plus_plus.address_features as af
+from AF_detection import AF_Detector  #add : AF CV detector module
 
 # --- Flask App Reference (set by backend_main.py) ---
 flask_app = None
@@ -46,6 +47,15 @@ now_ecg_data = {
 }
 mode = "rest_ecg_data_"
 exec = ThreadPoolExecutor()
+af_detector = AF_Detector(fs_hz=160, window_beats=100, min_new_rr_for_update=10)  #add : persistent detector for streaming chunks
+last_af_result = {  #add : latest AF result cache for external access
+    "af_detected": False,
+    "af_raw": False,
+    "cv_arr": None,
+    "beats_used": 0,
+    "vote_positive": 0,
+    "vote_total": 0,
+}
 
 # Connection state
 client_socket = None
@@ -117,7 +127,7 @@ def update_now_ecg(data: dict) -> None:
                 print(f"Error saving window feature: {e}")
 
 def update(frame):
-    global last_ts, last_ecg_chunk, last_temp_chunk, mode, connection_lost
+    global last_ts, last_ecg_chunk, last_temp_chunk, mode, connection_lost, last_af_result
     
     if connection_lost:
         if not reconnect():
@@ -153,6 +163,7 @@ def update(frame):
                     ts = np.asarray(temp_times, dtype=float)
                     ecg = np.asarray(temp_values, dtype=float)
                     exec.submit(af.calc_features, ts, ecg, base=mode).add_done_callback(update_now_ecg)
+                    last_af_result = af_detector.update(ecg)  #add : update AF state every 10-second ECG chunk
 
                     temp_times.clear()
                     temp_values.clear()
@@ -192,6 +203,9 @@ def get_points_chunk() -> list:
 
 def get_heart_rate() -> float:
     return now_ecg_data["avg_hr"]
+
+def get_af_result() -> dict:
+    return last_af_result  #add : expose AF result to backend_main/websocket layer
 
 # --- Run ---
 def main() -> None:
