@@ -377,7 +377,6 @@ def get_health_summary(user_id: int) -> dict:
             "st_slope": user_other_info["ST_Slope"],
             "resting_ecg": user_other_info["RestingECG"]
         },
-        "ai_summary": "這是來自 Python 後端的 AI 健康建議。請保持規律運動並監測您的心率。"
     }
 
 # ==================== Database Debug Tools ====================

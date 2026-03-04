@@ -16,7 +16,7 @@ from AF_detection import AFCVDetector  #add : AF CV detector module
 flask_app = None
 
 # --- Configuration ---
-ESP32_IP = '127.0.0.1'
+ESP32_IP = '192.168.56.1'
 PORT = 80
 WINDOW_SECONDS = 10  # How many seconds to show on the live graph
 SAVE_DATA = False

@@ -1,48 +1,31 @@
-version: '3.8'
-
 services:
   backend:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
     container_name: heart-monitor-backend
-    ports:
-      - "39244:39244"
     environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY} # from .env file
       - PYTHONUNBUFFERED=1
-    restart: unless-stopped
-    volumes:
-      # Mount local Python files for live development
-      - ../backend/backend_main.py:/app/backend_main.py
-      - ../backend/database.py:/app/database.py
-      - ../backend/ecg_wifi.py:/app/ecg_wifi.py
-      - ../backend/gemini.py:/app/gemini.py
-      - ../backend/login.py:/app/login.py
-      - ../backend/pan_tompkins_plus_plus/address_features.py:/app/pan_tompkins_plus_plus/address_features.py
-      - ../backend/pan_tompkins_plus_plus/algos/pan_tompkins_plus_plus.py:/app/pan_tompkins_plus_plus/algos/pan_tompkins_plus_plus.py
-      - ../backend/pan_tompkins_plus_plus/collect_features.py:/app/pan_tompkins_plus_plus/collect_features.py
-      - ../backend/pan_tompkins_plus_plus/predict.py:/app/pan_tompkins_plus_plus/predict.py
-      - ../backend/pan_tompkins_plus_plus/results_csv/prediction_time.csv:/app/pan_tompkins_plus_plus/results_csv/prediction_time.csv
-      - ../backend/pseudo_data.py:/app/pseudo_data.py
-      - ../backend/result_data.py:/app/result_data.py
-      # Persist logs and database (use directory for db)
-      - ./logs:/app/logs
-      - ./data:/app/data
+    image: ghcr.io/zawarudo87/home_wearable_heart_disease_monitoring_device:latest
     networks:
       - heart-monitor-network
+    ports:
+      - "39244:39244"
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
 
   portainer:
-    image: portainer/portainer-ce:latest
     container_name: portainer
+    image: portainer/portainer-ce:latest
+    networks:
+      - heart-monitor-network
     ports:
       - "9000:9000"
       - "9443:9443"
+    restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
-    restart: unless-stopped
-    networks:
-      - heart-monitor-network
 
 networks:
   heart-monitor-network:

@@ -21,7 +21,7 @@ const MAX_ECG_POINTS = 300;
 const ECG_UPDATE_MS = 40;
 
 // --- API Base URL ---
-const API_BASE_URL = "https://desired-sizes-backup-remark.trycloudflare.com";
+const API_BASE_URL = "http://localhost:39244";
 
 // --- API Helper ---
 
@@ -189,21 +189,41 @@ async function initializeApp(user) {
 }
 
 async function fetchHealthSummary() {
-    try {
-        const data = await fetchWithAuth('/api/v1/health/summary');
-        
-        document.getElementById('last-update').textContent = `最後更新：${new Date(data.last_update).toLocaleString()}`;
-        document.getElementById('resting-bp').textContent = data.overview.resting_bp == 0 ? '--' : data.overview.resting_bp;
-        document.getElementById('avg-hr').textContent = data.overview.avg_hr == 0 ? '--' : data.overview.avg_hr;
-        document.getElementById('max-hr').textContent = data.overview.max_hr == 0 ? '--' : data.overview.max_hr;
-        document.getElementById('st-slope').textContent = data.overview.st_slope;
-        document.getElementById('resting-ecg').textContent = data.overview.resting_ecg;
-        document.getElementById('health-summary').textContent = data.ai_summary;
-        
-    } catch (error) {
-        console.error('Failed to fetch health summary:', error);
-        document.getElementById('health-summary').textContent = '資料載入失敗。';
-    }
+  try {
+    const data = await fetchWithAuth('/api/v1/health/summary');
+
+    document.getElementById('last-update').textContent =
+      `????????${new Date(data.last_update).toLocaleString()}`;
+    document.getElementById('resting-bp').textContent = data.overview.resting_bp == 0 ? '--' : data.overview.resting_bp;
+    document.getElementById('avg-hr').textContent = data.overview.avg_hr == 0 ? '--' : data.overview.avg_hr;
+    document.getElementById('max-hr').textContent = data.overview.max_hr == 0 ? '--' : data.overview.max_hr;
+    document.getElementById('st-slope').textContent = data.overview.st_slope;
+    document.getElementById('resting-ecg').textContent = data.overview.resting_ecg;
+
+    // Placeholder for AI advice
+    const summaryEl = document.getElementById('health-summary');
+    summaryEl.textContent = '?????? AI ??????...';
+
+    (async () => {
+      try {
+        const advice = await fetchWithAuth('/api/v1/health/advice', {
+          method: 'POST',
+          body: JSON.stringify({ overview: data.overview })
+        });
+
+        if (!apiToken) return;
+
+        summaryEl.textContent = advice.ai_summary || '????????????';
+      } catch (e) {
+        console.error('Failed to fetch AI advice:', e);
+        summaryEl.textContent = 'AI ????????????????????;
+      }
+    })();
+
+  } catch (error) {
+    console.error('Failed to fetch health summary:', error);
+    document.getElementById('health-summary').textContent = '???????????;
+  }
 }
 
 // #add: render AF status from websocket payload
@@ -213,10 +233,11 @@ function updateAFStatus(afData) {
     if (!afData) return;
 
     const isAF = Boolean(afData.af_detected);
-    detectedEl.textContent = isAF ? '有風險' : '無風險';
+    detectedEl.textContent = isAF ? '????? : '?????;
     detectedEl.classList.remove('text-gray-900', 'text-red-600', 'text-green-600');
     detectedEl.classList.add(isAF ? 'text-red-600' : 'text-green-600');
 }
+
 
 // --- Chart Functions ---
 
@@ -714,9 +735,7 @@ function mapToEditPanelValues(config) {
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', function() {
-    // 設置註冊表單監聽器
     document.getElementById('registration-form').addEventListener('submit', handleRegistrationSubmit);
-    
     const token = sessionStorage.getItem('apiToken');
     if (token) {
         apiToken = token;
@@ -737,6 +756,11 @@ document.addEventListener('DOMContentLoaded', function() {
         initializeGSI();
     }
     
+    // --- DEMO: skip Google login ---
+    // apiToken = "DEMO_TOKEN";
+    // sessionStorage.setItem("apiToken", apiToken);
+    // initializeApp({ name: "Demo User" });
+
     if (window.elementSdk) {
         window.elementSdk.init({
             defaultConfig,

@@ -64,11 +64,21 @@ Goto **Containers > heart-monitor-backend > Stats** to get the result.
 
 1. If you are using Windows, download Docker Desktop and open it.
 2. `cd docker`.
-3. Ensure your docker fully stopped.
+3. Log in to ghcr.io with your GitHub account.
+```bash
+export CR_PAT=YOUR_GITHUB_TOKEN
+echo $CR_PAT | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+```
+4. Pull the docker image.
+```bash
+docker pull ghcr.io/YOUR_GITHUB_USERNAME/home_wearable_heart_disease_monitoring_device:latest
+```
+5. Check the image name in `docker-compose.yml` line 7 is same as the image you pulled.
+6. Ensure your docker fully stopped.
 ```bash
 docker-compose down
 ```
-4. Build the docker image and start.
+7. Build the docker image and start.
 ```bash
-docker-compose up --build
+docker-compose up
 ```
