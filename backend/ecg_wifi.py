@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import socket
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from matplotlib.animation import FuncAnimation
@@ -48,6 +49,13 @@ now_ecg_data = {
 mode = "rest_ecg_data_"
 exec = ThreadPoolExecutor()
 esp32_t0_us = None
+
+# Streaming buffer for real-time WebSocket (fed by update(), drained by get_points_chunk())
+_stream_lock = threading.Lock()
+_stream_times = []
+_stream_values = []
+# Rolling window for centering (keeps last WINDOW_SECONDS of raw values)
+_center_buf = []
 
 # Connection state
 client_socket = None
@@ -217,6 +225,16 @@ def update(frame):
             
             temp_times.append(now)
             temp_values.append(val)
+
+            # Also feed real-time streaming buffer for WebSocket
+            with _stream_lock:
+                _stream_times.append(now)
+                _stream_values.append(val)
+                _center_buf.append(val)
+                # Keep rolling window at ~WINDOW_SECONDS of samples (160Hz * WINDOW_SECONDS)
+                max_center = 160 * WINDOW_SECONDS
+                if len(_center_buf) > max_center:
+                    del _center_buf[:len(_center_buf) - max_center]
             
             if SAVE_DATA:
                 # Save to permanent lists
@@ -240,14 +258,23 @@ def update(frame):
     return line,
 
 def get_points_chunk() -> dict:
-    if not last_ecg_chunk or not last_temp_chunk:
-        return {"times": [], "values": []}
-    nda_ecg = np.array(last_ecg_chunk, dtype=np.float64)
-    nda_temp = np.array(last_temp_chunk, dtype=np.float64)
-    n_out = max(2, int(len(last_ecg_chunk) * 0.7))
-    nx, ny = lttbc.downsample(nda_temp, nda_ecg, n_out)
-    centered = (ny - np.mean(ny)).tolist()
-    times = nx.tolist()
+    """Drain new samples from the streaming buffer.
+    Returns dict: {"times": [...], "values": [...]}
+    Values are centered (mean-subtracted) using a rolling window.
+    """
+    with _stream_lock:
+        if not _stream_times:
+            return {"times": [], "values": []}
+        # Drain all pending samples
+        times = _stream_times.copy()
+        values = _stream_values.copy()
+        _stream_times.clear()
+        _stream_values.clear()
+        # Compute mean from the larger rolling window for stable centering
+        center_mean = np.mean(_center_buf) if _center_buf else 0.0
+
+    arr = np.array(values, dtype=np.float64)
+    centered = (arr - center_mean).tolist()
     return {"times": times, "values": centered}
 
 def get_heart_rate() -> float:

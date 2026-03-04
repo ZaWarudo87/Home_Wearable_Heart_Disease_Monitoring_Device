@@ -592,13 +592,15 @@ function ecgUpdateLoop() {
     let data = dataset.data;
     let changed = false;
 
-    // Drain up to 5 points per tick for smooth rendering
-    const batchSize = Math.min(ecgDataQueue.length, 5);
-    for (let i = 0; i < batchSize; i++) {
+    // Drain all queued points each tick — backend now streams real-time samples
+    while (ecgDataQueue.length > 0) {
         const point = ecgDataQueue.shift();
         if (point && point.t !== null && point.v !== null) {
-            data.push({ x: point.t, y: point.v });
-            changed = true;
+            // Guard against timestamp going backwards (e.g. mode switch reset)
+            if (data.length === 0 || point.t >= data[data.length - 1].x) {
+                data.push({ x: point.t, y: point.v });
+                changed = true;
+            }
         }
     }
 
@@ -608,9 +610,13 @@ function ecgUpdateLoop() {
     if (data.length > 0) {
         const latestT = data[data.length - 1].x;
         const cutoff = latestT - ECG_WINDOW_SECONDS;
-        // Remove old data points
-        while (data.length > 0 && data[0].x < cutoff) {
-            data.shift();
+        // Binary-search style trim: find first index >= cutoff
+        let trimIdx = 0;
+        while (trimIdx < data.length && data[trimIdx].x < cutoff) {
+            trimIdx++;
+        }
+        if (trimIdx > 0) {
+            data.splice(0, trimIdx);
         }
         // Update X-axis range to show a sliding window
         charts.ecgChart.options.scales.x.min = cutoff;
