@@ -57,14 +57,12 @@ void loop() {
         lastDebounceTime = millis();
       }
 
-      if ((millis() - lastDebounceTime) > debounceDelay) {
-        if (reading != buttonState) {
-          buttonState = reading;
-          if (buttonState == LOW) {
-            isExercise = !isExercise;
-            Serial.print("Mode Toggled to: ");
-            Serial.println(isExercise ? "EXERCISE" : "REST");
-          }
+      if ((millis() - lastDebounceTime) > debounceDelay && reading != buttonState) {
+        buttonState = reading;
+        if (buttonState == LOW) {
+          isExercise = !isExercise;
+          Serial.print("Mode Toggled to: ");
+          Serial.println(isExercise ? "EXERCISE" : "REST");
         }
       }
       lastButtonState = reading;

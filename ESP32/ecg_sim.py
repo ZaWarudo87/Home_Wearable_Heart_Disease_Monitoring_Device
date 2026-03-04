@@ -9,7 +9,7 @@ import time
 HOST = "0.0.0.0"
 PORT = 80
 DATA_FOLDER = "ECG_DATA"
-SAMPLE_INTERVAL = 1 / 160  # 160 Hz
+SAMPLE_INTERVAL = 0.00625  # 160 Hz
 
 def load_random_csv(folder: str) -> list:
     if not os.path.exists(folder):
@@ -75,31 +75,24 @@ def start_server() -> None:
                 is_exercise = 0
                 
                 print("Starting data stream...")
-                # Use microsecond timestamps like real ESP32
-                t0_real = time.time()
-                t0_us = int(t0_real * 1_000_000)
-                csv_t0 = ecg_data[0][0]
+                t_us = 0
                 
                 while True:
                     val = ecg_data[data_index][1]
-                    csv_elapsed = ecg_data[data_index][0] - csv_t0
                     data_index = (data_index + 1) % total_samples
-
-                    # Wait until real elapsed time matches CSV elapsed time
-                    target_real = t0_real + csv_elapsed
-                    while time.time() < target_real:
-                        time.sleep(0.0005)
                     
                     if random.random() < 0.0001:
                         is_exercise = 1 - is_exercise
                         print(f"Mode changed to: {'EXERCISE' if is_exercise else 'REST'}")
                     
-                    # Compute ESP32-style microsecond timestamp
-                    t_us = t0_us + int(csv_elapsed * 1_000_000)
-                    
-                    # New format: time_us,isExercise,voltage
+                    # format: time_us,isExercise,voltage
                     message = f"{t_us},{is_exercise},{val:.2f}\n"
                     client_socket.sendall(message.encode('utf-8'))
+
+                    t_us += int(SAMPLE_INTERVAL * 1000000)
+                    if t_us >= 4294967296:  # unsigned long overflow like ESP32 micros()
+                        t_us -= 4294967296
+                    time.sleep(SAMPLE_INTERVAL)
                         
             except (ConnectionResetError, BrokenPipeError):
                 print("Client disconnected. Waiting for new connection...")

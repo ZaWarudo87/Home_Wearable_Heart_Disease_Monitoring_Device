@@ -15,11 +15,16 @@ let config = { ...defaultConfig };
 let charts = {};
 let apiToken = null; 
 let ecgSocket = null; 
-let ecgDataQueue = [];  // [{t, v}, ...]
+let ecgDataQueue = [];  // [{t, v}, ...] raw buffer (deduped)
 let ecgAnimationInterval = null;
 const MAX_ECG_POINTS = 300;
 const ECG_UPDATE_MS = 40;
 const ECG_WINDOW_SECONDS = 10; // seconds of ECG to display
+
+// ECG smooth-render state
+let ecgLastReceivedTime = -Infinity;  // highest data timestamp received (for dedup)
+let ecgRenderWallBase = null;         // performance.now() when rendering started
+let ecgRenderDataBase = null;         // data-time corresponding to wallBase
 
 // --- API Base URL ---
 const API_BASE_URL = "http://localhost:39244";
@@ -497,10 +502,18 @@ function connectWebSocket() {
             if (data.points && Array.isArray(data.points)) {
                 const times = data.times || [];
                 for (let i = 0; i < data.points.length; i++) {
-                    ecgDataQueue.push({
-                        t: times[i] !== undefined ? times[i] : null,
-                        v: data.points[i]
-                    });
+                    const t = times[i];
+                    const v = data.points[i];
+                    // Deduplicate: only accept points with strictly newer timestamps
+                    if (t !== undefined && t !== null && v !== null && t > ecgLastReceivedTime) {
+                        ecgDataQueue.push({ t, v });
+                        ecgLastReceivedTime = t;
+                    }
+                }
+                // Initialize render time-base on first real data
+                if (ecgDataQueue.length > 0 && ecgRenderWallBase === null) {
+                    ecgRenderWallBase = performance.now();
+                    ecgRenderDataBase = ecgDataQueue[0].t;
                 }
             }
             if(data.heart_rate){
@@ -525,6 +538,11 @@ function connectWebSocket() {
         console.log('ECG WebSocket Disconnected');
         ecgSocket = null;
         stopEcgAnimation();
+        // Reset render state for next connection
+        ecgLastReceivedTime = -Infinity;
+        ecgRenderWallBase = null;
+        ecgRenderDataBase = null;
+        ecgDataQueue.length = 0;
     };
 
     ecgSocket.onerror = (error) => {
@@ -586,49 +604,60 @@ function initializeECGChart() {
 }
 
 function ecgUpdateLoop() {
-    if (!charts.ecgChart) return;
+    if (!charts.ecgChart) {
+        ecgAnimationInterval = requestAnimationFrame(ecgUpdateLoop);
+        return;
+    }
 
     const dataset = charts.ecgChart.data.datasets[0];
-    let data = dataset.data;
+    const data = dataset.data;
+
+    // Determine current playback data-time from wall clock
+    let currentDataTime;
+    if (ecgRenderWallBase !== null && ecgRenderDataBase !== null) {
+        const wallElapsedSec = (performance.now() - ecgRenderWallBase) / 1000;
+        currentDataTime = ecgRenderDataBase + wallElapsedSec;
+    } else {
+        // No data yet — just schedule next frame
+        ecgAnimationInterval = requestAnimationFrame(ecgUpdateLoop);
+        return;
+    }
+
+    // Release points from queue up to currentDataTime (metered playback)
     let changed = false;
-
-    // Drain all queued points each tick — backend now streams real-time samples
-    while (ecgDataQueue.length > 0) {
+    while (ecgDataQueue.length > 0 && ecgDataQueue[0].t <= currentDataTime) {
         const point = ecgDataQueue.shift();
-        if (point && point.t !== null && point.v !== null) {
-            // Guard against timestamp going backwards (e.g. mode switch reset)
-            if (data.length === 0 || point.t >= data[data.length - 1].x) {
-                data.push({ x: point.t, y: point.v });
-                changed = true;
-            }
+        // Detect timestamp reset (ESP32 restart / wrap)
+        if (data.length > 0 && point.t < data[data.length - 1].x - 1.0) {
+            data.length = 0;
+            ecgRenderWallBase = performance.now();
+            ecgRenderDataBase = point.t;
         }
+        data.push({ x: point.t, y: point.v });
+        changed = true;
     }
 
-    if (!changed) return;
+    // Smooth scroll: advance view window continuously with wall clock
+    const viewEnd = currentDataTime;
+    const viewStart = viewEnd - ECG_WINDOW_SECONDS;
 
-    // Trim data to only show the last ECG_WINDOW_SECONDS
-    if (data.length > 0) {
-        const latestT = data[data.length - 1].x;
-        const cutoff = latestT - ECG_WINDOW_SECONDS;
-        // Binary-search style trim: find first index >= cutoff
-        let trimIdx = 0;
-        while (trimIdx < data.length && data[trimIdx].x < cutoff) {
-            trimIdx++;
-        }
-        if (trimIdx > 0) {
-            data.splice(0, trimIdx);
-        }
-        // Update X-axis range to show a sliding window
-        charts.ecgChart.options.scales.x.min = cutoff;
-        charts.ecgChart.options.scales.x.max = latestT;
+    // Trim old data beyond visible range
+    let trimIdx = 0;
+    while (trimIdx < data.length && data[trimIdx].x < viewStart - 1) {
+        trimIdx++;
     }
+    if (trimIdx > 0) data.splice(0, trimIdx);
 
+    charts.ecgChart.options.scales.x.min = viewStart;
+    charts.ecgChart.options.scales.x.max = viewEnd;
     charts.ecgChart.update('none');
+
+    ecgAnimationInterval = requestAnimationFrame(ecgUpdateLoop);
 }
 
 function startEcgAnimation() {
     if (ecgAnimationInterval) return;
-    ecgAnimationInterval = setInterval(ecgUpdateLoop, ECG_UPDATE_MS);
+    ecgAnimationInterval = requestAnimationFrame(ecgUpdateLoop);
     
     document.getElementById('ecg-play').classList.add('bg-indigo-600', 'text-white');
     document.getElementById('ecg-play').classList.remove('bg-gray-200', 'text-gray-700');
@@ -638,7 +667,7 @@ function startEcgAnimation() {
 
 function stopEcgAnimation() {
     if (ecgAnimationInterval) {
-        clearInterval(ecgAnimationInterval);
+        cancelAnimationFrame(ecgAnimationInterval);
         ecgAnimationInterval = null;
     }
     

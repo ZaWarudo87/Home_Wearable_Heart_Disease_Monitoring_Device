@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import socket
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from matplotlib.animation import FuncAnimation
@@ -48,14 +47,6 @@ now_ecg_data = {
 }
 mode = "rest_ecg_data_"
 exec = ThreadPoolExecutor()
-esp32_t0_us = None
-
-# Streaming buffer for real-time WebSocket (fed by update(), drained by get_points_chunk())
-_stream_lock = threading.Lock()
-_stream_times = []
-_stream_values = []
-# Rolling window for centering (keeps last WINDOW_SECONDS of raw values)
-_center_buf = []
 
 # Connection state
 client_socket = None
@@ -104,7 +95,6 @@ def reconnect():
     return connect_to_esp32()
 
 def _has_nan(d: dict) -> bool:
-    """Return True if any numeric value in d is NaN."""
     for v in d.values():
         if isinstance(v, float) and math.isnan(v):
             return True
@@ -142,7 +132,7 @@ def update_now_ecg(data: dict) -> None:
                 print(f"Error saving window feature: {e}")
 
 def update(frame):
-    global last_ts, last_ecg_chunk, last_temp_chunk, mode, connection_lost, esp32_t0_us
+    global last_ts, last_ecg_chunk, last_temp_chunk, mode, connection_lost
     
     if connection_lost:
         if not reconnect():
@@ -163,7 +153,7 @@ def update(frame):
                 return line,
         
         if line_data:
-            # New ESP32 format: time_us,isExercise,voltage
+            # format: time_us,isExercise,voltage
             parts = line_data.split(',')
             if len(parts) != 3:
                 return line,
@@ -181,22 +171,19 @@ def update(frame):
             # If mode switched, flush current buffer with the previous mode
             # Only flush if enough samples for meaningful R-peak detection (>= 2s at 160Hz)
             MIN_FLUSH_SAMPLES = 320
-            if new_mode != mode and len(temp_values) >= MIN_FLUSH_SAMPLES:
-                print(f"Mode switched: {mode} -> {new_mode}, flushing {len(temp_values)} samples")
-                last_ecg_chunk = temp_values.copy()
-                last_temp_chunk = temp_times.copy()
-                ts = np.asarray(temp_times, dtype=float)
-                ecg = np.asarray(temp_values, dtype=float)
-                exec.submit(af.calc_features, ts, ecg, base=mode).add_done_callback(update_now_ecg)
+            if new_mode != mode:
+                if len(temp_values) >= MIN_FLUSH_SAMPLES:
+                    print(f"Mode switched: {mode} -> {new_mode}, flushing {len(temp_values)} samples")
+                    last_ecg_chunk = temp_values.copy()
+                    last_temp_chunk = temp_times.copy()
+                    ts = np.asarray(temp_times, dtype=float)
+                    ecg = np.asarray(temp_values, dtype=float)
+                    exec.submit(af.calc_features, ts, ecg, base=mode).add_done_callback(update_now_ecg)
+                else:
+                    print(f"Mode switched: {mode} -> {new_mode}, discarding {len(temp_values)} samples (too few)")
                 temp_times.clear()
                 temp_values.clear()
                 last_ts = time.time()
-            elif new_mode != mode:
-                print(f"Mode switched: {mode} -> {new_mode}, discarding {len(temp_values)} samples (too few)")
-                temp_times.clear()
-                temp_values.clear()
-                last_ts = time.time()
-            
             mode = new_mode
             
             # Skip lead-off samples
@@ -206,11 +193,8 @@ def update(frame):
             val = float(voltage_str)
             
             # Use ESP32 timestamp for precise relative time (seconds)
-            if esp32_t0_us is None:
-                esp32_t0_us = t_us
-            now = (t_us - esp32_t0_us) / 1_000_000.0  # microseconds -> seconds
-            
             now_timestamp = time.time()
+            now = now_timestamp - start_timestamp
 
             if now_timestamp - last_ts >= WINDOW_SECONDS:
                 last_ecg_chunk = temp_values.copy()
@@ -222,19 +206,10 @@ def update(frame):
                 temp_times.clear()
                 temp_values.clear()
                 last_ts = now_timestamp
+                # print(f"lec: {last_ecg_chunk}, ltc: {last_temp_chunk}")
             
             temp_times.append(now)
             temp_values.append(val)
-
-            # Also feed real-time streaming buffer for WebSocket
-            with _stream_lock:
-                _stream_times.append(now)
-                _stream_values.append(val)
-                _center_buf.append(val)
-                # Keep rolling window at ~WINDOW_SECONDS of samples (160Hz * WINDOW_SECONDS)
-                max_center = 160 * WINDOW_SECONDS
-                if len(_center_buf) > max_center:
-                    del _center_buf[:len(_center_buf) - max_center]
             
             if SAVE_DATA:
                 # Save to permanent lists
@@ -258,29 +233,23 @@ def update(frame):
     return line,
 
 def get_points_chunk() -> dict:
-    """Drain new samples from the streaming buffer.
-    Returns dict: {"times": [...], "values": [...]}
-    Values are centered (mean-subtracted) using a rolling window.
-    """
-    with _stream_lock:
-        if not _stream_times:
-            return {"times": [], "values": []}
-        # Drain all pending samples
-        times = _stream_times.copy()
-        values = _stream_values.copy()
-        _stream_times.clear()
-        _stream_values.clear()
-        # Compute mean from the larger rolling window for stable centering
-        center_mean = np.mean(_center_buf) if _center_buf else 0.0
-
-    arr = np.array(values, dtype=np.float64)
-    centered = (arr - center_mean).tolist()
+    global last_ecg_chunk, last_temp_chunk
+    if not last_ecg_chunk or not last_temp_chunk:
+        return {"times": [], "values": []}
+    nda_ecg = np.array(last_ecg_chunk, dtype=np.float64)
+    nda_temp = np.array(last_temp_chunk, dtype=np.float64)
+    n_out = max(2, int(len(last_ecg_chunk) * 0.5))
+    nx, ny = lttbc.downsample(nda_temp, nda_ecg, n_out)
+    centered = (ny - np.mean(ny)).tolist()
+    times = nx.tolist()
     return {"times": times, "values": centered}
 
 def get_heart_rate() -> float:
+    global now_ecg_data
     return now_ecg_data["avg_hr"]
 
 def get_mode() -> str:
+    global mode
     return "exercise" if "exercise" in mode else "rest"
 
 # --- Run ---
