@@ -90,7 +90,7 @@ def start_server() -> None:
                     while time.time() < target_real:
                         time.sleep(0.0005)
                     
-                    if random.random() < 0.001:
+                    if random.random() < 0.0001:
                         is_exercise = 1 - is_exercise
                         print(f"Mode changed to: {'EXERCISE' if is_exercise else 'REST'}")
                     

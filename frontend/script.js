@@ -152,7 +152,9 @@ async function handleRegistrationSubmit(event) {
 
 function initializeGSI() {
     if (!window.google || !window.google.accounts) {
-        console.error("Google GSI script not loaded.");
+        // GSI script loaded with async defer — may not be ready yet, retry
+        console.log("Waiting for Google GSI script to load...");
+        setTimeout(initializeGSI, 200);
         return;
     }
     

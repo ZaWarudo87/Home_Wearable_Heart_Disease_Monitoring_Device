@@ -1,4 +1,5 @@
 import csv
+import math
 import lttbc
 import matplotlib.pyplot as plt
 import numpy as np
@@ -94,9 +95,24 @@ def reconnect():
     
     return connect_to_esp32()
 
+def _has_nan(d: dict) -> bool:
+    """Return True if any numeric value in d is NaN."""
+    for v in d.values():
+        if isinstance(v, float) and math.isnan(v):
+            return True
+    return False
+
 def update_now_ecg(data: dict) -> None:
     global now_ecg_data, now_ecg_ts_min, ecg_data_cache, flask_app
-    now_ecg_data = data.result()
+    result = data.result()
+
+    # Skip if calc_features returned NaN (too few R-peaks)
+    if _has_nan(result):
+        print(f"Skipping window with NaN values (insufficient R-peaks): "
+              f"max_hr={result.get('max_hr')}, avg_hr={result.get('avg_hr')}")
+        return
+
+    now_ecg_data = result
 
     now_ts = time.time() // 60
     if now_ecg_ts_min != now_ts:
@@ -155,13 +171,20 @@ def update(frame):
             new_mode = "exercise_ecg_data_" if is_exercise else "rest_ecg_data_"
             
             # If mode switched, flush current buffer with the previous mode
-            if new_mode != mode and len(temp_values) > 0:
+            # Only flush if enough samples for meaningful R-peak detection (>= 2s at 160Hz)
+            MIN_FLUSH_SAMPLES = 320
+            if new_mode != mode and len(temp_values) >= MIN_FLUSH_SAMPLES:
                 print(f"Mode switched: {mode} -> {new_mode}, flushing {len(temp_values)} samples")
                 last_ecg_chunk = temp_values.copy()
                 last_temp_chunk = temp_times.copy()
                 ts = np.asarray(temp_times, dtype=float)
                 ecg = np.asarray(temp_values, dtype=float)
                 exec.submit(af.calc_features, ts, ecg, base=mode).add_done_callback(update_now_ecg)
+                temp_times.clear()
+                temp_values.clear()
+                last_ts = time.time()
+            elif new_mode != mode:
+                print(f"Mode switched: {mode} -> {new_mode}, discarding {len(temp_values)} samples (too few)")
                 temp_times.clear()
                 temp_values.clear()
                 last_ts = time.time()
