@@ -15,10 +15,11 @@ let config = { ...defaultConfig };
 let charts = {};
 let apiToken = null; 
 let ecgSocket = null; 
-let ecgDataQueue = []; 
+let ecgDataQueue = [];  // [{t, v}, ...]
 let ecgAnimationInterval = null;
 const MAX_ECG_POINTS = 300;
 const ECG_UPDATE_MS = 40;
+const ECG_WINDOW_SECONDS = 10; // seconds of ECG to display
 
 // --- API Base URL ---
 const API_BASE_URL = "http://localhost:39244";
@@ -492,10 +493,26 @@ function connectWebSocket() {
         try {
             const data = JSON.parse(event.data);
             if (data.points && Array.isArray(data.points)) {
-                ecgDataQueue.push(...data.points);
+                const times = data.times || [];
+                for (let i = 0; i < data.points.length; i++) {
+                    ecgDataQueue.push({
+                        t: times[i] !== undefined ? times[i] : null,
+                        v: data.points[i]
+                    });
+                }
             }
             if(data.heart_rate){
                 document.getElementById('current-heart-rate').textContent = data.heart_rate;
+            }
+            if(data.mode){
+                const modeEl = document.getElementById('ecg-mode-indicator');
+                if(modeEl){
+                    const isExercise = data.mode === 'exercise';
+                    modeEl.textContent = isExercise ? '運動模式' : '靜息模式';
+                    modeEl.className = isExercise
+                        ? 'text-sm font-semibold px-3 py-1 rounded-full bg-orange-100 text-orange-700'
+                        : 'text-sm font-semibold px-3 py-1 rounded-full bg-blue-100 text-blue-700';
+                }
             }
         } catch (e) {
             console.error('Error parsing ECG data:', e);
@@ -518,13 +535,11 @@ function connectWebSocket() {
 
 function initializeECGChart() {
     const ctx = document.getElementById('ecgChart').getContext('2d');
-    const initialData = new Array(MAX_ECG_POINTS).fill(null);
-    const initialLabels = new Array(MAX_ECG_POINTS).fill('');
+    const initialData = [];
 
     charts.ecgChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: initialLabels,
             datasets: [{
                 label: 'ECG',
                 data: initialData,
@@ -538,12 +553,26 @@ function initializeECGChart() {
             responsive: true,
             maintainAspectRatio: false,
             animation: false,
+            parsing: false,
             plugins: {
                 legend: { display: false },
                 tooltip: { enabled: false }
             },
             scales: {
-                x: { display: false },
+                x: {
+                    type: 'linear',
+                    display: true,
+                    title: {
+                        display: true,
+                        text: '時間 (秒)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value.toFixed(1) + 's';
+                        },
+                        maxTicksLimit: 10
+                    }
+                },
                 y: { min: -1.5, max: 2.0 }
             }
         }
@@ -557,16 +586,34 @@ function initializeECGChart() {
 function ecgUpdateLoop() {
     if (!charts.ecgChart) return;
 
-    const data = charts.ecgChart.data.datasets[0].data;
-    const labels = charts.ecgChart.data.labels;
+    const dataset = charts.ecgChart.data.datasets[0];
+    let data = dataset.data;
+    let changed = false;
 
-    const newDataPoint = ecgDataQueue.length > 0 ? ecgDataQueue.shift() : null;
+    // Drain up to 5 points per tick for smooth rendering
+    const batchSize = Math.min(ecgDataQueue.length, 5);
+    for (let i = 0; i < batchSize; i++) {
+        const point = ecgDataQueue.shift();
+        if (point && point.t !== null && point.v !== null) {
+            data.push({ x: point.t, y: point.v });
+            changed = true;
+        }
+    }
 
-    data.shift();
-    labels.shift();
+    if (!changed) return;
 
-    data.push(newDataPoint);
-    labels.push('');
+    // Trim data to only show the last ECG_WINDOW_SECONDS
+    if (data.length > 0) {
+        const latestT = data[data.length - 1].x;
+        const cutoff = latestT - ECG_WINDOW_SECONDS;
+        // Remove old data points
+        while (data.length > 0 && data[0].x < cutoff) {
+            data.shift();
+        }
+        // Update X-axis range to show a sliding window
+        charts.ecgChart.options.scales.x.min = cutoff;
+        charts.ecgChart.options.scales.x.max = latestT;
+    }
 
     charts.ecgChart.update('none');
 }

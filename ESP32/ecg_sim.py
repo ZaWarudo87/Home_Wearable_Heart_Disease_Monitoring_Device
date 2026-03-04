@@ -72,25 +72,33 @@ def start_server() -> None:
             try:
                 data_index = 0
                 total_samples = len(ecg_data)
-                is_exercise = False
+                is_exercise = 0
                 
                 print("Starting data stream...")
-                delta_time = time.time() - ecg_data[0][0]
+                # Use microsecond timestamps like real ESP32
+                t0_real = time.time()
+                t0_us = int(t0_real * 1_000_000)
+                csv_t0 = ecg_data[0][0]
+                
                 while True:
                     val = ecg_data[data_index][1]
+                    csv_elapsed = ecg_data[data_index][0] - csv_t0
                     data_index = (data_index + 1) % total_samples
 
-                    elapsed = time.time() - delta_time
-                    while elapsed < ecg_data[data_index][0]:
+                    # Wait until real elapsed time matches CSV elapsed time
+                    target_real = t0_real + csv_elapsed
+                    while time.time() < target_real:
                         time.sleep(0.0005)
-                        elapsed = time.time() - delta_time
                     
                     if random.random() < 0.001:
-                        is_exercise = not is_exercise
-                        message = "EXERCISE\n" if is_exercise else "REST\n"
+                        is_exercise = 1 - is_exercise
                         print(f"Mode changed to: {'EXERCISE' if is_exercise else 'REST'}")
-                    else:
-                        message = f"{val}\n"
+                    
+                    # Compute ESP32-style microsecond timestamp
+                    t_us = t0_us + int(csv_elapsed * 1_000_000)
+                    
+                    # New format: time_us,isExercise,voltage
+                    message = f"{t_us},{is_exercise},{val:.2f}\n"
                     client_socket.sendall(message.encode('utf-8'))
                         
             except (ConnectionResetError, BrokenPipeError):

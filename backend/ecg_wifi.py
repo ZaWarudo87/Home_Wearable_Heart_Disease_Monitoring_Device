@@ -46,6 +46,7 @@ now_ecg_data = {
 }
 mode = "rest_ecg_data_"
 exec = ThreadPoolExecutor()
+esp32_t0_us = None
 
 # Connection state
 client_socket = None
@@ -117,7 +118,7 @@ def update_now_ecg(data: dict) -> None:
                 print(f"Error saving window feature: {e}")
 
 def update(frame):
-    global last_ts, last_ecg_chunk, last_temp_chunk, mode, connection_lost
+    global last_ts, last_ecg_chunk, last_temp_chunk, mode, connection_lost, esp32_t0_us
     
     if connection_lost:
         if not reconnect():
@@ -138,44 +139,76 @@ def update(frame):
                 return line,
         
         if line_data:
-            if line_data == "REST":
-                mode = "rest_ecg_data_"
-            elif line_data == "EXERCISE":
-                mode = "exercise_ecg_data_"
-            else:
-                val = float(line_data)
-                now_timestamp = time.time()
-                now = now_timestamp - start_timestamp
+            # New ESP32 format: time_us,isExercise,voltage
+            parts = line_data.split(',')
+            if len(parts) != 3:
+                return line,
+            
+            try:
+                t_us = int(parts[0])           # ESP32 timestamp in microseconds
+                is_exercise = int(parts[1])    # 0 = REST, 1 = EXERCISE
+                voltage_str = parts[2].strip() # voltage or "NaN"
+            except ValueError:
+                return line,
+            
+            # Determine new mode from isExercise flag
+            new_mode = "exercise_ecg_data_" if is_exercise else "rest_ecg_data_"
+            
+            # If mode switched, flush current buffer with the previous mode
+            if new_mode != mode and len(temp_values) > 0:
+                print(f"Mode switched: {mode} -> {new_mode}, flushing {len(temp_values)} samples")
+                last_ecg_chunk = temp_values.copy()
+                last_temp_chunk = temp_times.copy()
+                ts = np.asarray(temp_times, dtype=float)
+                ecg = np.asarray(temp_values, dtype=float)
+                exec.submit(af.calc_features, ts, ecg, base=mode).add_done_callback(update_now_ecg)
+                temp_times.clear()
+                temp_values.clear()
+                last_ts = time.time()
+            
+            mode = new_mode
+            
+            # Skip lead-off samples
+            if voltage_str == "NaN":
+                return line,
+            
+            val = float(voltage_str)
+            
+            # Use ESP32 timestamp for precise relative time (seconds)
+            if esp32_t0_us is None:
+                esp32_t0_us = t_us
+            now = (t_us - esp32_t0_us) / 1_000_000.0  # microseconds -> seconds
+            
+            now_timestamp = time.time()
 
-                if now_timestamp - last_ts >= WINDOW_SECONDS:
-                    last_ecg_chunk = temp_values.copy()
-                    last_temp_chunk = temp_times.copy()
-                    ts = np.asarray(temp_times, dtype=float)
-                    ecg = np.asarray(temp_values, dtype=float)
-                    exec.submit(af.calc_features, ts, ecg, base=mode).add_done_callback(update_now_ecg)
+            if now_timestamp - last_ts >= WINDOW_SECONDS:
+                last_ecg_chunk = temp_values.copy()
+                last_temp_chunk = temp_times.copy()
+                ts = np.asarray(temp_times, dtype=float)
+                ecg = np.asarray(temp_values, dtype=float)
+                exec.submit(af.calc_features, ts, ecg, base=mode).add_done_callback(update_now_ecg)
 
-                    temp_times.clear()
-                    temp_values.clear()
-                    last_ts = now_timestamp
-                
-                temp_times.append(now)
-                temp_values.append(val)
-                
-                if SAVE_DATA:
-                    # Save to permanent lists
-                    all_times.append(now)
-                    all_values.append(val)
+                temp_times.clear()
+                temp_values.clear()
+                last_ts = now_timestamp
+            
+            temp_times.append(now)
+            temp_values.append(val)
+            
+            if SAVE_DATA:
+                # Save to permanent lists
+                all_times.append(now)
+                all_values.append(val)
 
-                    # Update plot data (showing only last WINDOW_SECONDS)
-                    # slice the list [-500:] to keep the plot fast/responsive
-                    plot_slice_t = all_times[0:] 
-                    plot_slice_v = all_values[0:]
-                    
-                    line.set_data(plot_slice_t, plot_slice_v)
+                # Update plot data (showing only last WINDOW_SECONDS)
+                plot_slice_t = all_times[0:] 
+                plot_slice_v = all_values[0:]
                 
-                    # Shift X-axis view
-                    if now > WINDOW_SECONDS:
-                        ax.set_xlim(now - WINDOW_SECONDS, now)
+                line.set_data(plot_slice_t, plot_slice_v)
+            
+                # Shift X-axis view
+                if now > WINDOW_SECONDS:
+                    ax.set_xlim(now - WINDOW_SECONDS, now)
     except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError) as e:
         print(f"Connection error: {e}")
         connection_lost = True
@@ -183,15 +216,22 @@ def update(frame):
         print(f"Error updating data: {e}")
     return line,
 
-def get_points_chunk() -> list:
+def get_points_chunk() -> dict:
+    if not last_ecg_chunk or not last_temp_chunk:
+        return {"times": [], "values": []}
     nda_ecg = np.array(last_ecg_chunk, dtype=np.float64)
     nda_temp = np.array(last_temp_chunk, dtype=np.float64)
-    nx, ny = lttbc.downsample(nda_temp, nda_ecg, int(len(last_ecg_chunk) * 0.7))
-    return (ny - np.mean(ny)).tolist()
-    # return np.clip((nda - np.mean(nda)) / np.std(nda), -2, 2).tolist()
+    n_out = max(2, int(len(last_ecg_chunk) * 0.7))
+    nx, ny = lttbc.downsample(nda_temp, nda_ecg, n_out)
+    centered = (ny - np.mean(ny)).tolist()
+    times = nx.tolist()
+    return {"times": times, "values": centered}
 
 def get_heart_rate() -> float:
     return now_ecg_data["avg_hr"]
+
+def get_mode() -> str:
+    return "exercise" if "exercise" in mode else "rest"
 
 # --- Run ---
 def main() -> None:

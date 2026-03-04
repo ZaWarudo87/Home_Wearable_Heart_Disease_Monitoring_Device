@@ -189,9 +189,15 @@ active_websockets = []
 def send_ecg_data(ws: Server):
     try:
         while True:
-            points_chunk = ecg_wifi.get_points_chunk()
+            chunk = ecg_wifi.get_points_chunk()
             heart_rate = ecg_wifi.get_heart_rate()
-            ws.send(json.dumps({"points": points_chunk, "heart_rate": heart_rate}))
+            current_mode = ecg_wifi.get_mode()
+            ws.send(json.dumps({
+                "times": chunk["times"],
+                "points": chunk["values"],
+                "heart_rate": heart_rate,
+                "mode": current_mode
+            }))
             time.sleep(0.16)
     except Exception as e:
         print(f"WebSocket send error or client disconnected: {e}")
