@@ -9,7 +9,7 @@ import time
 HOST = "0.0.0.0"
 PORT = 80
 DATA_FOLDER = "ECG_DATA"
-SAMPLE_INTERVAL = 1 / 160  # 160 Hz
+SAMPLE_INTERVAL = 0.00625  # 160 Hz
 
 def load_random_csv(folder: str) -> list:
     if not os.path.exists(folder):
@@ -72,26 +72,27 @@ def start_server() -> None:
             try:
                 data_index = 0
                 total_samples = len(ecg_data)
-                is_exercise = False
+                is_exercise = 0
                 
                 print("Starting data stream...")
-                delta_time = time.time() - ecg_data[0][0]
+                t_us = 0
+                
                 while True:
                     val = ecg_data[data_index][1]
                     data_index = (data_index + 1) % total_samples
-
-                    elapsed = time.time() - delta_time
-                    while elapsed < ecg_data[data_index][0]:
-                        time.sleep(0.0005)
-                        elapsed = time.time() - delta_time
                     
-                    if random.random() < 0.001:
-                        is_exercise = not is_exercise
-                        message = "EXERCISE\n" if is_exercise else "REST\n"
+                    if random.random() < 0.0001:
+                        is_exercise = 1 - is_exercise
                         print(f"Mode changed to: {'EXERCISE' if is_exercise else 'REST'}")
-                    else:
-                        message = f"{val}\n"
+                    
+                    # format: time_us,isExercise,voltage
+                    message = f"{t_us},{is_exercise},{val:.2f}\n"
                     client_socket.sendall(message.encode('utf-8'))
+
+                    t_us += int(SAMPLE_INTERVAL * 1000000)
+                    if t_us >= 4294967296:  # unsigned long overflow like ESP32 micros()
+                        t_us -= 4294967296
+                    time.sleep(SAMPLE_INTERVAL)
                         
             except (ConnectionResetError, BrokenPipeError):
                 print("Client disconnected. Waiting for new connection...")
