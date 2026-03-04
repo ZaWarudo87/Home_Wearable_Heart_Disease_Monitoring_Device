@@ -44,20 +44,20 @@ def add_security_headers(response):
     return response
 
 # --- Frontend Server ---
-# @app.route('/', methods=['GET'])
-# def serve_index():
-#     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
-#     return send_from_directory(frontend_dir, 'index.html')
+@app.route('/', methods=['GET'])
+def serve_index():
+    frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
+    return send_from_directory(frontend_dir, 'index.html')
 
-# @app.route('/style.css', methods=['GET'])
-# def serve_frontend():
-#     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
-#     return send_from_directory(frontend_dir, 'style.css')
+@app.route('/style.css', methods=['GET'])
+def serve_frontend():
+    frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
+    return send_from_directory(frontend_dir, 'style.css')
 
-# @app.route('/script.js', methods=['GET'])
-# def serve_script():
-#     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
-#     return send_from_directory(frontend_dir, 'script.js')
+@app.route('/script.js', methods=['GET'])
+def serve_script():
+    frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
+    return send_from_directory(frontend_dir, 'script.js')
 
 # --- Authentication Endpoints ---
 @app.route('/api/auth/google', methods=['POST'])

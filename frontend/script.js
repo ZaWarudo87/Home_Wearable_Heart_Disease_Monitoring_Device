@@ -73,7 +73,6 @@ async function handleCredentialResponse(credentialResponse) {
         if(data.user.name)
             defaultConfig.user_name = data.user.name;
         
-        // 檢查是否為新用戶
         if (data.is_new_user) {
             showRegistrationForm();
         } else {
@@ -138,8 +137,6 @@ async function handleRegistrationSubmit(event) {
         });
         
         console.log('Registration successful:', response);
-        
-        // 註冊成功後，獲取用戶資料並初始化應用
         const userData = await fetchWithAuth('/api/auth/me');
         await initializeApp(userData.user);
         
@@ -182,7 +179,7 @@ async function initializeApp(user) {
 
     await fetchHealthSummary();
     
-    // 預設選中 'overview'
+    // Default 'overview'
     document.getElementById('tab-overview').classList.add('bg-indigo-600', 'text-white');
     document.getElementById('tab-overview').classList.remove('bg-gray-200', 'text-gray-700');
     document.getElementById('page-overview').classList.remove('hidden');
@@ -229,40 +226,37 @@ async function fetchHealthSummary() {
 // --- Chart Functions ---
 
 function switchTab(tabId) {
-    // 停止所有動畫
     stopEcgAnimation();
-    
-    // 如果切換到非 ECG 頁面，關閉 WebSocket
     if (tabId !== 'ecg' && ecgSocket) {
         ecgSocket.close();
         ecgSocket = null;
     }
 
-    // 隱藏所有分頁
+    // Hide all tab contents
     document.querySelectorAll('.tab-content').forEach(page => {
         page.classList.add('hidden');
     });
     
-    // 重設所有分頁按鈕樣式
+    // Reset all tab buttons to default style
     document.querySelectorAll('[id^="tab-"]').forEach(btn => {
         btn.classList.remove('bg-indigo-600', 'text-white');
         btn.classList.add('bg-gray-200', 'text-gray-700');
     });
     
-    // 顯示點擊的分頁
+    // Show the active tab content
     const activePage = document.getElementById(`page-${tabId}`);
     if (activePage) {
         activePage.classList.remove('hidden');
     }
     
-    // 設置點擊按鈕的 active 樣式
+    // Set active button style
     const activeButton = document.getElementById(`tab-${tabId}`);
     if (activeButton) {
         activeButton.classList.add('bg-indigo-600', 'text-white');
         activeButton.classList.remove('bg-gray-200', 'text-gray-700');
     }
     
-    // 根據 tabId 初始化圖表
+    // Initialize or resize charts based on the active tab
     switch(tabId) {
         case 'bp':
             if (!charts.bpChart) {
@@ -304,7 +298,7 @@ function switchTab(tabId) {
     }
 }
 
-// 初始化血壓圖表
+// Initialize blood pressure chart
 async function initializeBPChart(period) {
     try {
         const data = await fetchWithAuth(`/api/v1/charts/bp?period=${period}`);
@@ -338,7 +332,7 @@ async function initializeBPChart(period) {
     }
 }
 
-// 更新血壓圖表
+// Update blood pressure chart with new period
 async function updateBPChart(period) {
     if (!charts.bpChart) return;
     try {
@@ -351,7 +345,7 @@ async function updateBPChart(period) {
     }
 }
 
-// 初始化1分鐘心率圖表
+// Initialize 1-minute interval heart rate chart
 async function initializeHR1minChart(period) {
     try {
         const data = await fetchWithAuth(`/api/v1/charts/hr?interval=1min&period=${period}`);
@@ -384,7 +378,7 @@ async function initializeHR1minChart(period) {
     }
 }
 
-// 初始化30分鐘心率圖表
+// Initialize 30-minute interval heart rate chart
 async function initializeHR30minChart(period) {
     try {
         const data = await fetchWithAuth(`/api/v1/charts/hr?interval=30min&period=${period}`);
@@ -417,7 +411,7 @@ async function initializeHR30minChart(period) {
     }
 }
 
-// 更新心率圖表 (通用)
+// Update heart rate chart with new interval/period
 async function updateHRChart(chartName, interval, period) {
     if (!charts[chartName]) return;
     try {
@@ -430,7 +424,7 @@ async function updateHRChart(chartName, interval, period) {
     }
 }
 
-// 初始化儀表圖
+// Initialize risk gauge chart
 async function initializeGaugeChart() {
     try {
         const data = await fetchWithAuth('/api/v1/health/risk');
@@ -615,9 +609,9 @@ function setupEcgControls() {
     document.getElementById('ecg-pause').addEventListener('click', stopEcgAnimation);
 }
 
-/**
- * 輔助函數：更新按鈕組的 active 樣式
- */
+
+// --- Helper Functions ---
+
 function updateButtonStyles(activeButton, groupId) {
     const buttons = document.querySelectorAll(`[id^="${groupId}"]`);
     
@@ -685,21 +679,16 @@ async function handleHealthDataSubmit(event) {
         
         console.log('Health data submitted successfully:', response);
         
-        // 顯示成功訊息
+        // Show success message
         const successMsg = document.getElementById('health-data-success');
         successMsg.classList.remove('hidden');
-        
-        // 3秒後隱藏成功訊息
         setTimeout(() => {
             successMsg.classList.add('hidden');
         }, 3000);
         
-        // 清空表單
+        // Clear form inputs
         document.getElementById('health-data-form').reset();
-        
-        // 重新獲取健康摘要
         await fetchHealthSummary();
-        
     } catch (error) {
         console.error('Health data submission failed:', error);
         alert('健康數據提交失敗，請稍後再試。');
