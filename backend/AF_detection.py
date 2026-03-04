@@ -12,7 +12,7 @@ class AFCVDetector:
         self,
         fs_hz: float = 160.0,
         window_beats: int = 100,  # number of RR intervals in the window
-        cv_arr_ref: float = 0.34,
+        cv_rr_ref: float = 0.24,
         rcv_percent: float = 35.0,
         hr_max: float = 200.0,
         voting_windows: int = 5,
@@ -24,7 +24,7 @@ class AFCVDetector:
         
         self.window_beats = int(window_beats)
        
-        self.cv_arr_ref = float(cv_arr_ref)
+        self.cv_rr_ref = float(cv_rr_ref)
         
         self.rcv_percent = float(rcv_percent)
         
@@ -52,7 +52,7 @@ class AFCVDetector:
         self._last_result = {
             "af_detected": False,
             "af_raw": False,
-            "cv_arr": None,
+            "cv_rr": None,
             "beats_used": 0,
             "vote_positive": 0,
             "vote_total": 0,
@@ -66,7 +66,7 @@ class AFCVDetector:
         self._last_result = {
             "af_detected": False,
             "af_raw": False,
-            "cv_arr": None,
+            "cv_rr": None,
             "beats_used": 0,
             "vote_positive": 0,
             "vote_total": 0,
@@ -80,16 +80,15 @@ class AFCVDetector:
         high = ref * (1.0 + self.rcv_percent / 100.0)
         return low <= value <= high
 
-    def _compute_cv_arr(self, rr: np.ndarray) -> float:
-        # CV_ARR = std(ARR)/mean(RR), where ARR = diff(RR)
+    def _compute_cv_rr(self, rr: np.ndarray) -> float:
+        # CV_RR = std(RR)/mean(RR)
         rr = np.asarray(rr, dtype=float)
-        if rr.size < 3:
+        if rr.size < 2:
             return np.nan
         mean_rr = float(np.mean(rr))
         if mean_rr <= 0:
             return np.nan
-        arr = np.diff(rr)
-        return float(np.std(arr, ddof=0) / mean_rr) if arr.size > 0 else np.nan
+        return float(np.std(rr, ddof=0) / mean_rr)
 
     def _apply_refractory(self, peaks: np.ndarray) -> np.ndarray:
         # Enforce minimum spacing between adjacent R-peaks to suppress over-detections.
@@ -130,17 +129,17 @@ class AFCVDetector:
         should_eval = (
             len(self._rr_intervals) >= self.window_beats
             and (
-                self._last_result["cv_arr"] is None
+                self._last_result["cv_rr"] is None
                 or self._new_rr_since_eval >= self.min_new_rr_for_update
             )
         )
         if should_eval:
             rr_window = np.asarray(self._rr_intervals[-self.window_beats :], dtype=float)
-            cv_arr = self._compute_cv_arr(rr_window)
+            cv_rr = self._compute_cv_rr(rr_window)
 
-            # 5) CV test: AF when CV_ARR falls inside reference tolerance band.
-            af_arr = self._within_range(cv_arr, self.cv_arr_ref)
-            af_raw = bool(af_arr)
+            # 5) CV test: AF when CV_RR falls inside reference tolerance band.
+            af_rr = self._within_range(cv_rr, self.cv_rr_ref)
+            af_raw = bool(af_rr)
             self._af_history.append(af_raw)
             vote_positive = int(sum(self._af_history))
             vote_total = len(self._af_history)
@@ -149,7 +148,7 @@ class AFCVDetector:
             self._last_result = {
                 "af_detected": bool(af_voted),
                 "af_raw": af_raw,
-                "cv_arr": float(cv_arr) if np.isfinite(cv_arr) else None,
+                "cv_rr": float(cv_rr) if np.isfinite(cv_rr) else None,
                 "beats_used": int(self.window_beats),
                 "vote_positive": vote_positive,
                 "vote_total": vote_total,

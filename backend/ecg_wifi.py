@@ -10,7 +10,7 @@ from matplotlib.animation import FuncAnimation
 
 import database
 import pan_tompkins_plus_plus.address_features as af
-from AF_detection import AF_Detector  #add : AF CV detector module
+from AF_detection import AFCVDetector  #add : AF CV detector module
 
 # --- Flask App Reference (set by backend_main.py) ---
 flask_app = None
@@ -47,11 +47,11 @@ now_ecg_data = {
 }
 mode = "rest_ecg_data_"
 exec = ThreadPoolExecutor()
-af_detector = AF_Detector(fs_hz=160, window_beats=100, min_new_rr_for_update=10)  #add : persistent detector for streaming chunks
+af_detector = AFCVDetector(fs_hz=160, window_beats=100, min_new_rr_for_update=10)  #add : persistent detector for streaming chunks
 last_af_result = {  #add : latest AF result cache for external access
     "af_detected": False,
     "af_raw": False,
-    "cv_arr": None,
+    "cv_rr": None,
     "beats_used": 0,
     "vote_positive": 0,
     "vote_total": 0,
