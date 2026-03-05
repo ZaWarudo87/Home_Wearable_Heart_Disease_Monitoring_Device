@@ -177,11 +177,11 @@ def get_chart_hr():
     if period == '1h':
         data = database.get_chart_data(user_data["id"], 60, 'hr') #database
     elif period == '6h':
-        data = database.get_chart_data(user_data["id"], 360, 'hr') #database
+        data = database.get_chart_data(user_data["id"], 360, 'hr', max_points=100) #database
     elif period == '24h':
         data = database.get_chart_data(user_data["id"], 1440, 'hr') #database
     else: # 7d
-        data = database.get_chart_data(user_data["id"], 10080, 'hr') #database
+        data = database.get_chart_data(user_data["id"], 10080, 'hr', max_points=100) #database
     return jsonify(data)
 
 # --- Real-time ECG WebSocket ---
