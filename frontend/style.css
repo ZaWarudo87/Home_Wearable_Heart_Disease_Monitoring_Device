@@ -1,37 +1,48 @@
-body { 
-    box-sizing: border-box; 
+body {
+    box-sizing: border-box;
 }
 
-.chart-container { 
-    position: relative; 
-    height: 300px; 
-    width: 100%; 
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
 }
-.gauge-container { 
-    position: relative; 
-    height: 200px; 
-    width: 100%; 
-}
-
-.warning-indicator { 
-    animation: pulse 2s infinite; 
-}
-@keyframes pulse { 
-    0%, 100% { 
-        opacity: 1; 
-    } 
-    50% { 
-        opacity: 0.5; 
-    } 
+.gauge-container {
+    position: relative;
+    height: 200px;
+    width: 100%;
 }
 
-.card-hover { 
-    transition: transform 0.2s ease-in-out; 
+.warning-indicator {
+    animation: pulse 2s infinite;
 }
-.card-hover:hover { 
-    transform: translateY(-2px); 
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
 }
 
-@view-transition { 
-    navigation: auto; 
+.card-hover {
+    transition: transform 0.2s ease-in-out;
+}
+.card-hover:hover {
+    transform: translateY(-2px);
+}
+
+@view-transition {
+    navigation: auto;
+}
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: none;
 }
