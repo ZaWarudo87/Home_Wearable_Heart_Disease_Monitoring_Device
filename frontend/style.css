@@ -1,5 +1,8 @@
 body {
     box-sizing: border-box;
+    background: linear-gradient(to bottom right, #000000, #4c0519);
+    background-attachment: fixed;
+    min-height: 100vh;
 }
 
 .chart-container {
