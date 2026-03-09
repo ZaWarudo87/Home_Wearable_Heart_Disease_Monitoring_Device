@@ -16,4 +16,4 @@ let charts = {};
 let apiToken = null;
 
 // --- API Base URL ---
-const API_BASE_URL = "https://stored-nutrition-ceo-loading.trycloudflare.com";
+const API_BASE_URL = "https://looksmart-demographic-clients-healthy.trycloudflare.com";

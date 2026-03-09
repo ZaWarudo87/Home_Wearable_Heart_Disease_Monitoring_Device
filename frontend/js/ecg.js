@@ -2,10 +2,12 @@
 
 let ecgSocket = null;
 let ecgDataQueue = [];  // [{t, v}, ...] raw buffer (deduped)
+let ecgDownloadBuffer = []; // [{t, v}, ...] rolling 30s buffer for download
 let ecgAnimationInterval = null;
 const MAX_ECG_POINTS = 300;
 const ECG_UPDATE_MS = 40;
 const ECG_WINDOW_SECONDS = 10; // seconds of ECG to display
+const ECG_DOWNLOAD_SECONDS = 30; // seconds of ECG kept for download
 
 // ECG smooth-render state
 let ecgLastReceivedTime = -Infinity;  // highest data timestamp received (for dedup)
@@ -42,6 +44,7 @@ function connectWebSocket() {
                     const v = data.points[i];
                     if (t !== undefined && t !== null && v !== null && t > ecgLastReceivedTime) {
                         ecgDataQueue.push({ t, v });
+                        ecgDownloadBuffer.push({ t, v });
                         ecgLastReceivedTime = t;
                     }
                 }
@@ -78,6 +81,7 @@ function connectWebSocket() {
         ecgRenderDataBase = null;
         ecgDisplayOffset = null;
         ecgDataQueue.length = 0;
+        ecgDownloadBuffer.length = 0;
     };
 
     ecgSocket.onerror = (error) => {
@@ -111,7 +115,7 @@ function initializeECGChart() {
             parsing: false,
             layout: {
                 autoPadding: false,
-                padding: { left: 25, right: 40, top: 10, bottom: 40 }
+                padding: { left: window.innerWidth * 0.01, right: window.innerWidth * 0.03, top: 10, bottom: 40 }
             },
             plugins: {
                 legend: { display: false },
@@ -250,7 +254,114 @@ function stopEcgAnimation() {
     }
 }
 
+function downloadEcgImage() {
+    if (ecgDownloadBuffer.length === 0) return;
+
+    // Trim buffer to last 30 seconds
+    const latestT = ecgDownloadBuffer[ecgDownloadBuffer.length - 1].t;
+    const cutoff = latestT - ECG_DOWNLOAD_SECONDS;
+    while (ecgDownloadBuffer.length > 0 && ecgDownloadBuffer[0].t < cutoff) {
+        ecgDownloadBuffer.shift();
+    }
+
+    const baseT = ecgDownloadBuffer[0].t;
+    const points = ecgDownloadBuffer.map(p => ({ x: p.t - baseT, y: p.v }));
+    const xMin = points[0].x;
+    const xMax = points[points.length - 1].x;
+    const totalSeconds = xMax - xMin;
+    if (totalSeconds <= 0) return;
+
+    // Canvas sizing: ~109px per second, min 2160px
+    const pxPerSec = 109;
+    const width = Math.max(2160, Math.ceil(totalSeconds * pxPerSec) + 160);
+    const height = 500;
+    const pad = { top: 60, bottom: 60, left: 80, right: 80 };
+    const plotW = width - pad.left - pad.right;
+    const plotH = height - pad.top - pad.bottom;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    // Background
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+
+    // Grid
+    const yMin = -1.5, yMax = 2.0;
+    const toX = x => pad.left + ((x - xMin) / totalSeconds) * plotW;
+    const toY = y => pad.top + ((yMax - y) / (yMax - yMin)) * plotH;
+
+    // Light grid lines every 0.5s / 0.5mV
+    ctx.strokeStyle = '#fecdd3';
+    ctx.lineWidth = 0.5;
+    const gridStart = Math.ceil(xMin * 2) / 2;
+    for (let s = gridStart; s <= xMax; s += 0.5) {
+        const px = toX(s);
+        ctx.beginPath(); ctx.moveTo(px, pad.top); ctx.lineTo(px, pad.top + plotH); ctx.stroke();
+    }
+    for (let mv = yMin; mv <= yMax; mv += 0.5) {
+        const py = toY(mv);
+        ctx.beginPath(); ctx.moveTo(pad.left, py); ctx.lineTo(pad.left + plotW, py); ctx.stroke();
+    }
+    // Bold grid lines every 1s / 1mV
+    ctx.strokeStyle = '#fda4af';
+    ctx.lineWidth = 1;
+    const boldStart = Math.ceil(xMin);
+    for (let s = boldStart; s <= xMax; s += 1) {
+        const px = toX(s);
+        ctx.beginPath(); ctx.moveTo(px, pad.top); ctx.lineTo(px, pad.top + plotH); ctx.stroke();
+    }
+    for (let mv = Math.ceil(yMin); mv <= yMax; mv += 1) {
+        const py = toY(mv);
+        ctx.beginPath(); ctx.moveTo(pad.left, py); ctx.lineTo(pad.left + plotW, py); ctx.stroke();
+    }
+
+    // Axes labels
+    ctx.fillStyle = '#44403c';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    for (let s = boldStart; s <= xMax; s += 1) {
+        ctx.fillText(Math.round(s) + 's', toX(s), pad.top + plotH + 20);
+    }
+    ctx.textAlign = 'right';
+    for (let mv = Math.ceil(yMin); mv <= yMax; mv += 1) {
+        ctx.fillText(mv.toFixed(1), pad.left - 8, toY(mv) + 4);
+    }
+
+    // ECG trace
+    ctx.strokeStyle = '#e11d48';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < points.length; i++) {
+        const px = toX(points[i].x);
+        const py = toY(points[i].y);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Title & info
+    ctx.fillStyle = '#1c1917';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('ECG 心電圖紀錄', pad.left, 30);
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#78716c';
+    const now = new Date();
+    const ts = now.getFullYear() + '/' + String(now.getMonth()+1).padStart(2,'0') + '/' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    ctx.fillText('下載時間: ' + ts + '  |  資料長度: ' + totalSeconds.toFixed(1) + ' 秒  |  取樣點數: ' + points.length, pad.left, 48);
+
+    // Download
+    const link = document.createElement('a');
+    link.download = 'ECG_' + now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '_' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0') + String(now.getSeconds()).padStart(2,'0') + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+}
+
 function setupEcgControls() {
     document.getElementById('ecg-play').addEventListener('click', startEcgAnimation);
     document.getElementById('ecg-pause').addEventListener('click', stopEcgAnimation);
+    document.getElementById('ecg-download').addEventListener('click', downloadEcgImage);
 }
