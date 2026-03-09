@@ -1,5 +1,6 @@
 import csv
 import math
+from collections import deque
 import lttbc
 import matplotlib.pyplot as plt
 import numpy as np
@@ -53,6 +54,10 @@ client_socket = None
 socket_file = None
 connection_lost = False
 reconnect_attempts = 0
+
+# Thread-safe queue for WebSocket display (update() pushes, get_points_chunk() pops)
+_ecg_ws_deque = deque()
+_ecg_running_mean = None
 
 def init():
     ax.set_xlim(0, WINDOW_SECONDS)
@@ -210,6 +215,7 @@ def update(frame):
             
             temp_times.append(now)
             temp_values.append(val)
+            _ecg_ws_deque.append((now, val))
             
             if SAVE_DATA:
                 # Save to permanent lists
@@ -233,15 +239,25 @@ def update(frame):
     return line,
 
 def get_points_chunk() -> dict:
-    global last_ecg_chunk, last_temp_chunk
-    if not last_ecg_chunk or not last_temp_chunk:
+    global _ecg_running_mean
+    # Drain the thread-safe deque — only new points since last call
+    points = []
+    while _ecg_ws_deque:
+        try:
+            points.append(_ecg_ws_deque.popleft())
+        except IndexError:
+            break
+    if not points:
         return {"times": [], "values": []}
-    nda_ecg = np.array(last_ecg_chunk, dtype=np.float64)
-    nda_temp = np.array(last_temp_chunk, dtype=np.float64)
-    n_out = max(2, int(len(last_ecg_chunk) * 0.5))
-    nx, ny = lttbc.downsample(nda_temp, nda_ecg, n_out)
-    centered = (ny - np.mean(ny)).tolist()
-    times = nx.tolist()
+    times = [p[0] for p in points]
+    values = [p[1] for p in points]
+    # Running mean for stable centering across batches
+    for v in values:
+        if _ecg_running_mean is None:
+            _ecg_running_mean = v
+        else:
+            _ecg_running_mean += (v - _ecg_running_mean) * 0.001
+    centered = [v - _ecg_running_mean for v in values]
     return {"times": times, "values": centered}
 
 def get_heart_rate() -> float:

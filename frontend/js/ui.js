@@ -37,32 +37,36 @@ function switchTab(tabId) {
     // Initialize or resize charts based on the active tab
     switch (tabId) {
         case 'bp':
-            if (!charts.bpChart) {
+            initializeBPChart('7d');
+            /* if (!charts.bpChart) {
                 initializeBPChart('7d');
             } else {
                 charts.bpChart.resize();
-            }
+            } */
             break;
         case 'hr1min':
-            if (!charts.hr1minChart) {
+            initializeHR1minChart('1h');
+            /* if (!charts.hr1minChart) {
                 initializeHR1minChart('1h');
             } else {
                 charts.hr1minChart.resize();
-            }
+            } */
             break;
         case 'hr30min':
-            if (!charts.hr30minChart) {
+            initializeHR30minChart('24h');
+            /* if (!charts.hr30minChart) {
                 initializeHR30minChart('24h');
             } else {
                 charts.hr30minChart.resize();
-            }
+            } */
             break;
         case 'risk':
-            if (!charts.gaugeChart) {
+            initializeGaugeChart();
+            /* if (!charts.gaugeChart) {
                 initializeGaugeChart();
             } else {
                 charts.gaugeChart.resize();
-            }
+            } */
             break;
         case 'ecg':
             if (!charts.ecgChart) {

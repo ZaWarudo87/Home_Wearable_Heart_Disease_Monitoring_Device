@@ -2,6 +2,13 @@
 
 async function initializeGaugeChart() {
     try {
+        const canvas = document.getElementById('gaugeChart');
+        const ctx = canvas.getContext('2d');
+        // ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.reset();
+        document.getElementById('risk-score').textContent = "--";
+        document.getElementById('risk-level').textContent = "--";
+
         const data = await fetchWithAuth('/api/v1/health/risk');
         const riskScore = data.risk_score;
         const riskLevel = data.level;
@@ -9,7 +16,9 @@ async function initializeGaugeChart() {
         document.getElementById('risk-score').textContent = riskScore;
         document.getElementById('risk-level').textContent = riskLevel;
 
-        const ctx = document.getElementById('gaugeChart').getContext('2d');
+        if (charts.gaugeChart) {
+            charts.gaugeChart.destroy();
+        }
         charts.gaugeChart = new Chart(ctx, {
             type: 'doughnut',
             data: {

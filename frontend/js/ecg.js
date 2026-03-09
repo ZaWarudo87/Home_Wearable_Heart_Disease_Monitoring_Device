@@ -4,6 +4,7 @@ let ecgSocket = null;
 let ecgDataQueue = [];  // [{t, v}, ...] raw buffer (deduped)
 let ecgDownloadBuffer = []; // [{t, v}, ...] rolling 30s buffer for download
 let ecgAnimationInterval = null;
+let isExercise = false;
 const MAX_ECG_POINTS = 300;
 const ECG_UPDATE_MS = 40;
 const ECG_WINDOW_SECONDS = 10; // seconds of ECG to display
@@ -60,7 +61,7 @@ function connectWebSocket() {
             if (data.mode) {
                 const modeEl = document.getElementById('ecg-mode-indicator');
                 if (modeEl) {
-                    const isExercise = data.mode === 'exercise';
+                    isExercise = data.mode === 'exercise';
                     modeEl.textContent = isExercise ? '運動模式' : '靜息模式';
                     modeEl.className = isExercise
                         ? 'text-sm font-semibold px-3 py-1 shadow-lg bg-purple-950 text-purple-200'
@@ -380,7 +381,7 @@ function downloadEcgImage() {
     ctx.fillStyle = '#78716c';
     const now = new Date();
     const ts = now.getFullYear() + '/' + String(now.getMonth()+1).padStart(2,'0') + '/' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-    ctx.fillText('下載時間: ' + ts + '  |  資料長度: ' + totalSeconds.toFixed(1) + ' 秒  |  取樣點數: ' + points.length, pad.left, 48);
+    ctx.fillText('下載時間: ' + ts + '  |  ' + (isExercise ? '運動模式' : '靜息模式') + '  |  資料長度: ' + totalSeconds.toFixed(1) + ' 秒  |  取樣點數: ' + points.length, pad.left, 48);
 
     // Download
     const link = document.createElement('a');
