@@ -44,20 +44,20 @@ def add_security_headers(response):
     return response
 
 # --- Frontend Server ---
-# @app.route('/', methods=['GET'])
-# def serve_index():
-#     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
-#     return send_from_directory(frontend_dir, 'index.html')
+@app.route('/', methods=['GET'])
+def serve_index():
+    frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
+    return send_from_directory(frontend_dir, 'index.html')
 
-# @app.route('/style.css', methods=['GET'])
-# def serve_frontend():
-#     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
-#     return send_from_directory(frontend_dir, 'style.css')
+@app.route('/style.css', methods=['GET'])
+def serve_frontend():
+    frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
+    return send_from_directory(frontend_dir, 'style.css')
 
-# @app.route('/script.js', methods=['GET'])
-# def serve_script():
-#     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
-#     return send_from_directory(frontend_dir, 'script.js')
+@app.route('/script.js', methods=['GET'])
+def serve_script():
+    frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
+    return send_from_directory(frontend_dir, 'script.js')
 
 # --- Authentication Endpoints ---
 @app.route('/api/auth/google', methods=['POST'])
@@ -177,11 +177,11 @@ def get_chart_hr():
     if period == '1h':
         data = database.get_chart_data(user_data["id"], 60, 'hr') #database
     elif period == '6h':
-        data = database.get_chart_data(user_data["id"], 360, 'hr') #database
+        data = database.get_chart_data(user_data["id"], 360, 'hr', max_points=100) #database
     elif period == '24h':
         data = database.get_chart_data(user_data["id"], 1440, 'hr') #database
     else: # 7d
-        data = database.get_chart_data(user_data["id"], 10080, 'hr') #database
+        data = database.get_chart_data(user_data["id"], 10080, 'hr', max_points=100) #database
     return jsonify(data)
 
 # --- Real-time ECG WebSocket ---
