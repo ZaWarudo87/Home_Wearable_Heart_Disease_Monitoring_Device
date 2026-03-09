@@ -1,10 +1,13 @@
 // --- Tab Switching & UI Helpers ---
 
 function switchTab(tabId) {
-    stopEcgAnimation();
-    if (tabId !== 'ecg' && ecgSocket) {
-        ecgSocket.close();
-        ecgSocket = null;
+    // Stop animation & disconnect WS when leaving ECG tab
+    if (tabId !== 'ecg') {
+        stopEcgAnimation();
+        if (ecgSocket) {
+            ecgSocket.close();
+            ecgSocket = null;
+        }
     }
 
     // Hide all tab contents
@@ -63,21 +66,9 @@ function switchTab(tabId) {
             break;
         case 'ecg':
             if (!charts.ecgChart) {
-                connectWebSocket();
                 initializeECGChart();
-            } else {
-                // Reset render state and clear stale data
-                ecgLastReceivedTime = -Infinity;
-                ecgRenderWallBase = null;
-                ecgRenderDataBase = null;
-                ecgDisplayOffset = null;
-                ecgDataQueue.length = 0;
-                charts.ecgChart.data.datasets[0].data = [];
-                charts.ecgChart.update('none');
-                charts.ecgChart.resize();
-                connectWebSocket();
             }
-            startEcgAnimation();
+            ecgPlay();
             break;
     }
 }
