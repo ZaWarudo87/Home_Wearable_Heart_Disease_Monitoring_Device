@@ -1,4 +1,6 @@
 import csv
+import math
+from collections import deque
 import lttbc
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,7 +12,7 @@ from matplotlib.animation import FuncAnimation
 
 import database
 import pan_tompkins_plus_plus.address_features as af
-from AF_detection import AFCVDetector  #add : AF CV detector module
+from AF_detection import AFCVDetector
 
 # --- Flask App Reference (set by backend_main.py) ---
 flask_app = None
@@ -47,8 +49,8 @@ now_ecg_data = {
 }
 mode = "rest_ecg_data_"
 exec = ThreadPoolExecutor()
-af_detector = AFCVDetector(fs_hz=160, window_beats=100, min_new_rr_for_update=10)  #add : persistent detector for streaming chunks
-last_af_result = {  #add : latest AF result cache for external access
+af_detector = AFCVDetector(fs_hz=160, window_beats=100, min_new_rr_for_update=10)
+last_af_result = {
     "af_detected": False,
     "af_raw": False,
     "cv_rr": None,
@@ -62,6 +64,10 @@ client_socket = None
 socket_file = None
 connection_lost = False
 reconnect_attempts = 0
+
+# Thread-safe queue for WebSocket display (update() pushes, get_points_chunk() pops)
+_ecg_ws_deque = deque()
+_ecg_running_mean = None
 
 def init():
     ax.set_xlim(0, WINDOW_SECONDS)
@@ -103,9 +109,23 @@ def reconnect():
     
     return connect_to_esp32()
 
+def _has_nan(d: dict) -> bool:
+    for v in d.values():
+        if isinstance(v, float) and math.isnan(v):
+            return True
+    return False
+
 def update_now_ecg(data: dict) -> None:
     global now_ecg_data, now_ecg_ts_min, ecg_data_cache, flask_app
-    now_ecg_data = data.result()
+    result = data.result()
+
+    # Skip if calc_features returned NaN (too few R-peaks)
+    if _has_nan(result):
+        print(f"Skipping window with NaN values (insufficient R-peaks): "
+              f"max_hr={result.get('max_hr')}, avg_hr={result.get('avg_hr')}")
+        return
+
+    now_ecg_data = result
 
     now_ts = time.time() // 60
     if now_ecg_ts_min != now_ts:
@@ -148,45 +168,81 @@ def update(frame):
                 return line,
         
         if line_data:
-            if line_data == "REST":
-                mode = "rest_ecg_data_"
-            elif line_data == "EXERCISE":
-                mode = "exercise_ecg_data_"
-            else:
-                val = float(line_data)
-                now_timestamp = time.time()
-                now = now_timestamp - start_timestamp
-
-                if now_timestamp - last_ts >= WINDOW_SECONDS:
+            # format: time_us,isExercise,voltage
+            parts = line_data.split(',')
+            if len(parts) != 3:
+                return line,
+            
+            try:
+                t_us = int(parts[0])           # ESP32 timestamp in microseconds
+                is_exercise = int(parts[1])    # 0 = REST, 1 = EXERCISE
+                voltage_str = parts[2].strip() # voltage or "NaN"
+            except ValueError:
+                return line,
+            
+            # Determine new mode from isExercise flag
+            new_mode = "exercise_ecg_data_" if is_exercise else "rest_ecg_data_"
+            
+            # If mode switched, flush current buffer with the previous mode
+            # Only flush if enough samples for meaningful R-peak detection (>= 2s at 160Hz)
+            MIN_FLUSH_SAMPLES = 320
+            if new_mode != mode:
+                if len(temp_values) >= MIN_FLUSH_SAMPLES:
+                    print(f"Mode switched: {mode} -> {new_mode}, flushing {len(temp_values)} samples")
                     last_ecg_chunk = temp_values.copy()
                     last_temp_chunk = temp_times.copy()
                     ts = np.asarray(temp_times, dtype=float)
                     ecg = np.asarray(temp_values, dtype=float)
                     exec.submit(af.calc_features, ts, ecg, base=mode).add_done_callback(update_now_ecg)
-                    last_af_result = af_detector.update(ecg)  #add : update AF state every 10-second ECG chunk
+                    last_af_result = af_detector.update(ecg)
+                else:
+                    print(f"Mode switched: {mode} -> {new_mode}, discarding {len(temp_values)} samples (too few)")
+                temp_times.clear()
+                temp_values.clear()
+                last_ts = time.time()
+            mode = new_mode
+            
+            # Skip lead-off samples
+            if voltage_str == "NaN":
+                return line,
+            
+            val = float(voltage_str)
+            
+            # Use ESP32 timestamp for precise relative time (seconds)
+            now_timestamp = time.time()
+            now = now_timestamp - start_timestamp
 
-                    temp_times.clear()
-                    temp_values.clear()
-                    last_ts = now_timestamp
-                
-                temp_times.append(now)
-                temp_values.append(val)
-                
-                if SAVE_DATA:
-                    # Save to permanent lists
-                    all_times.append(now)
-                    all_values.append(val)
+            if now_timestamp - last_ts >= WINDOW_SECONDS:
+                last_ecg_chunk = temp_values.copy()
+                last_temp_chunk = temp_times.copy()
+                ts = np.asarray(temp_times, dtype=float)
+                ecg = np.asarray(temp_values, dtype=float)
+                exec.submit(af.calc_features, ts, ecg, base=mode).add_done_callback(update_now_ecg)
+                last_af_result = af_detector.update(ecg)
 
-                    # Update plot data (showing only last WINDOW_SECONDS)
-                    # slice the list [-500:] to keep the plot fast/responsive
-                    plot_slice_t = all_times[0:] 
-                    plot_slice_v = all_values[0:]
-                    
-                    line.set_data(plot_slice_t, plot_slice_v)
+                temp_times.clear()
+                temp_values.clear()
+                last_ts = now_timestamp
+                # print(f"lec: {last_ecg_chunk}, ltc: {last_temp_chunk}")
+            
+            temp_times.append(now)
+            temp_values.append(val)
+            _ecg_ws_deque.append((now, val))
+            
+            if SAVE_DATA:
+                # Save to permanent lists
+                all_times.append(now)
+                all_values.append(val)
+
+                # Update plot data (showing only last WINDOW_SECONDS)
+                plot_slice_t = all_times[0:] 
+                plot_slice_v = all_values[0:]
                 
-                    # Shift X-axis view
-                    if now > WINDOW_SECONDS:
-                        ax.set_xlim(now - WINDOW_SECONDS, now)
+                line.set_data(plot_slice_t, plot_slice_v)
+            
+                # Shift X-axis view
+                if now > WINDOW_SECONDS:
+                    ax.set_xlim(now - WINDOW_SECONDS, now)
     except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError) as e:
         print(f"Connection error: {e}")
         connection_lost = True
@@ -194,18 +250,39 @@ def update(frame):
         print(f"Error updating data: {e}")
     return line,
 
-def get_points_chunk() -> list:
-    nda_ecg = np.array(last_ecg_chunk, dtype=np.float64)
-    nda_temp = np.array(last_temp_chunk, dtype=np.float64)
-    nx, ny = lttbc.downsample(nda_temp, nda_ecg, int(len(last_ecg_chunk) * 0.7))
-    return (ny - np.mean(ny)).tolist()
-    # return np.clip((nda - np.mean(nda)) / np.std(nda), -2, 2).tolist()
+def get_points_chunk() -> dict:
+    global _ecg_running_mean
+    # Drain the thread-safe deque — only new points since last call
+    points = []
+    while _ecg_ws_deque:
+        try:
+            points.append(_ecg_ws_deque.popleft())
+        except IndexError:
+            break
+    if not points:
+        return {"times": [], "values": []}
+    times = [p[0] for p in points]
+    values = [p[1] for p in points]
+    # Running mean for stable centering across batches
+    for v in values:
+        if _ecg_running_mean is None:
+            _ecg_running_mean = v
+        else:
+            _ecg_running_mean += (v - _ecg_running_mean) * 0.001
+    centered = [v - _ecg_running_mean for v in values]
+    return {"times": times, "values": centered}
 
 def get_heart_rate() -> float:
+    global now_ecg_data
     return now_ecg_data["avg_hr"]
 
+def get_mode() -> str:
+    global mode
+    return "exercise" if "exercise" in mode else "rest"
+
+
 def get_af_result() -> dict:
-    return last_af_result  #add : expose AF result to backend_main/websocket layer
+    return last_af_result
 
 # --- Run ---
 def main() -> None:

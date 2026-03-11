@@ -143,7 +143,12 @@ class AFCVDetector:
             self._af_history.append(af_raw)
             vote_positive = int(sum(self._af_history))
             vote_total = len(self._af_history)
-            af_voted = vote_positive >= self.voting_min_positive
+            # Use a stricter persistence rule: AF is reported only when
+            # the recent window is full and every raw decision is positive.
+            af_voted = (
+                vote_total == self.voting_windows
+                and vote_positive == self.voting_windows
+            )
 
             self._last_result = {
                 "af_detected": bool(af_voted),

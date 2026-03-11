@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from flask import request
 import random
+import time
 
 VALID_API_TOKEN = "TEST_TOKEN_12345"
 user_database = {}
@@ -92,18 +93,24 @@ def get_health_risk() -> dict:
         "level": "低風險"
     }
 
-def get_points_chunk() -> list:
+def get_points_chunk() -> dict:
     index = 0
     chunk_size = 20
     points_chunk = []
-    for _ in range(chunk_size):
+    times_chunk = []
+    t = time.time() % 100  # relative seconds
+    for i in range(chunk_size):
         noise = random.uniform(-0.05, 0.05)
         points_chunk.append(ONE_HEARTBEAT[index] + noise)
+        times_chunk.append(round(t + i * (1.0 / 160.0), 6))
         index = (index + 1) % len(ONE_HEARTBEAT)
-    return points_chunk
+    return {"times": times_chunk, "values": points_chunk}
 
 def get_heart_rate() -> int:
     return random.randint(65, 70)
+
+def get_mode() -> str:
+    return random.choice(["rest", "exercise"])
 
 def check_auth_ws(token: str) -> bool:
     return token == VALID_API_TOKEN

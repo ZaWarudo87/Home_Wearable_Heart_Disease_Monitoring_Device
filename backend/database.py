@@ -1,6 +1,8 @@
 import argparse
 import os
 import pandas as pd
+import numpy as np
+import lttbc
 
 from bisect import bisect_left
 from datetime import datetime, timedelta
@@ -225,7 +227,7 @@ def update_hr_record() -> None:
         record.user_id = now_user_id
     db.session.commit()
 
-def get_chart_data(user_id: int, points: int, data_type: str = 'hr') -> dict:
+def get_chart_data(user_id: int, points: int, data_type: str = 'hr', max_points: int = 0) -> dict:
     user = User.query.get(user_id)
     
     if data_type == 'hr':
@@ -239,11 +241,16 @@ def get_chart_data(user_id: int, points: int, data_type: str = 'hr') -> dict:
                 records.pop()
             records.reverse()
 
-            labels = [r.timestamp.strftime('%H:%M') for r in records]
-            values = [r.heart_rate for r in records]
-            # print("labels:", labels)
-            # print("values:", values)
-            if points >= 1440:
+            # Apply LTTBC downsampling if requested and data is large enough
+            if max_points > 0 and len(records) > max_points:
+                ts_arr = np.array([r.timestamp.timestamp() for r in records], dtype=np.float64)
+                val_arr = np.array([r.heart_rate for r in records], dtype=np.float64)
+                ds_x, ds_y = lttbc.downsample(ts_arr, val_arr, max_points)
+
+                fmt = '%m-%d %H:%M' if points >= 1440 else '%H:%M'
+                labels = [datetime.fromtimestamp(t).strftime(fmt) for t in ds_x]
+                values = ds_y.tolist()
+            elif points >= 1440:
                 labels = [datetime.now() - timedelta(minutes=i) for i in range(0, points, 30)][::-1]
                 new_values = [[] for _ in range(len(labels))]
                 for i in records:
@@ -257,9 +264,9 @@ def get_chart_data(user_id: int, points: int, data_type: str = 'hr') -> dict:
                     else:
                         new_values[i] = None
                 values = new_values
-                # print("labels: ", labels)
-                # print("values: ", values)
-                # print("len labels:", len(labels))
+            else:
+                labels = [r.timestamp.strftime('%H:%M') for r in records]
+                values = [r.heart_rate for r in records]
         else:
             return {"labels": [], "values": []}
     else:  # bp

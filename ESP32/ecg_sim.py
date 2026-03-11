@@ -9,9 +9,11 @@ import time
 HOST = "0.0.0.0"
 PORT = 80
 DATA_FOLDER = "ECG_DATA"
-SAMPLE_INTERVAL = 1 / 160  # 160 Hz
+REST_FOLDER = os.path.join(DATA_FOLDER, "rest")
+EXERCISE_FOLDER = os.path.join(DATA_FOLDER, "exercise")
+SAMPLE_INTERVAL = 0.00625  # 160 Hz
 
-def load_random_csv(folder: str) -> list:
+def load_random_csv(folder: str, is_rest: bool = True) -> list:
     if not os.path.exists(folder):
         print(f"Error: '{folder}' not found.")
         return None
@@ -27,14 +29,13 @@ def load_random_csv(folder: str) -> list:
     data_points = []
     try:
         with open(selected_file, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            if "ecg_value" not in reader.fieldnames:
-                print(f"Error: File {selected_file} is missing 'ecg_value' column")
-                return None
-            
+            reader = csv.DictReader(f)            
             for row in reader:
                 try:
-                    val = (float(row["timestamp"]), float(row["ecg_value"]))
+                    if is_rest:
+                        val = (float(row["timestamp"]), float(row["ecg_value"]))
+                    else:
+                        val = (float(row["IsExercise"]), float(row["Voltage"]))
                     data_points.append(val)
                 except ValueError:
                     continue
@@ -45,10 +46,28 @@ def load_random_csv(folder: str) -> list:
     print(f"Successfully read {len(data_points)} data points.")
     return data_points
 
+def stream_data(client_socket, ecg_data: list, is_exercise: bool, t_us: int) -> int:
+    for idk, val in ecg_data:
+        if is_exercise:
+            exercise = int(idk)
+        else:
+            exercise = 0
+        message = f"{t_us},{exercise},{val:.2f}\n"
+        client_socket.sendall(message.encode('utf-8'))
+        t_us += int(SAMPLE_INTERVAL * 1000000)
+        if t_us >= 4294967296:  # unsigned long overflow like ESP32 micros()
+            t_us -= 4294967296
+        time.sleep(SAMPLE_INTERVAL)
+    return t_us
+
 def start_server() -> None:
-    ecg_data = load_random_csv(DATA_FOLDER)
-    if not ecg_data:
-        return
+    for folder in (REST_FOLDER, EXERCISE_FOLDER):
+        if not os.path.exists(folder):
+            print(f"Error: '{folder}' not found.")
+            return
+        if not glob.glob(os.path.join(folder, '*.csv')):
+            print(f"Error: No .csv files found in '{folder}'.")
+            return
 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -70,28 +89,23 @@ def start_server() -> None:
                 continue
             
             try:
-                data_index = 0
-                total_samples = len(ecg_data)
-                is_exercise = False
-                
+                t_us = 0
                 print("Starting data stream...")
-                delta_time = time.time() - ecg_data[0][0]
+                
                 while True:
-                    val = ecg_data[data_index][1]
-                    data_index = (data_index + 1) % total_samples
+                    # --- REST ---
+                    rest_data = load_random_csv(REST_FOLDER, True)
+                    if not rest_data:
+                        break
+                    print("[REST] Streaming...")
+                    t_us = stream_data(client_socket, rest_data, False, t_us)
 
-                    elapsed = time.time() - delta_time
-                    while elapsed < ecg_data[data_index][0]:
-                        time.sleep(0.0005)
-                        elapsed = time.time() - delta_time
-                    
-                    if random.random() < 0.001:
-                        is_exercise = not is_exercise
-                        message = "EXERCISE\n" if is_exercise else "REST\n"
-                        print(f"Mode changed to: {'EXERCISE' if is_exercise else 'REST'}")
-                    else:
-                        message = f"{val}\n"
-                    client_socket.sendall(message.encode('utf-8'))
+                    # --- EXERCISE ---
+                    exercise_data = load_random_csv(EXERCISE_FOLDER, False)
+                    if not exercise_data:
+                        break
+                    print("[EXERCISE] Streaming...")
+                    t_us = stream_data(client_socket, exercise_data, True, t_us)
                         
             except (ConnectionResetError, BrokenPipeError):
                 print("Client disconnected. Waiting for new connection...")
