@@ -26,7 +26,7 @@ async function initializeGaugeChart() {
                     data: [riskScore, 100 - riskScore],
                     backgroundColor: [
                         riskScore < 30 ? '#00a63e' : riskScore < 70 ? '#e17100' : '#e7000b',
-                        '#3f0d1e'
+                        getThemeChartColors().gaugeBg
                     ],
                     borderWidth: 0,
                     circumference: 180,

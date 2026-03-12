@@ -130,10 +130,10 @@ function initializeECGChart() {
                     title: {
                         display: true,
                         text: '時間 (秒)',
-                        color: '#d6d3d1',
+                        color: getThemeChartColors().tick,
                     },
                     ticks: {
-                        color: '#d6d3d1',
+                        color: getThemeChartColors().tick,
                         maxRotation: 0,
                         autoSkip: false,
                         callback: function(value) {
@@ -152,13 +152,13 @@ function initializeECGChart() {
                     afterFit: function(axis) {
                         axis.height = 40; // fixed height prevents layout bounce
                     },
-                    grid: { color: '#6b5563' }
+                    grid: { color: getThemeChartColors().grid }
                 },
                 y: {
                     min: -1.5,
                     max: 2.0,
-                    ticks: { color: '#d6d3d1' },
-                    grid: { color: '#6b5563' },
+                    ticks: { color: getThemeChartColors().tick },
+                    grid: { color: getThemeChartColors().grid },
                     afterFit: function(axis) {
                         axis.width = 50; // fixed width prevents horizontal layout shift
                     }

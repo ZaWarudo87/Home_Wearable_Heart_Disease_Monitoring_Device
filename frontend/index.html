@@ -18,6 +18,9 @@
 
  <body class="min-h-screen font-sans">
 
+  <!-- Global theme toggle (visible on login/registration) -->
+  <button id="theme-toggle-global" class="theme-toggle" style="position:fixed;top:1rem;right:1rem;z-index:50" title="切換淺色/深色模式">深</button>
+
   <!-- Login -->
   <div id="login-view" class="flex items-center justify-center min-h-screen">
    <div class="bg-rose-950 p-8 rounded-lg shadow-lg text-center">
@@ -29,7 +32,7 @@
   </div>
 
   <!-- Sign up -->
-  <div id="registration-view" class="flex items-center justify-center min-h-full hidden">
+  <div id="registration-view" class="flex items-center justify-center min-h-screen hidden">
    <div class="bg-rose-950 p-8 rounded-lg shadow-lg max-w-md w-full">
     <h1 class="text-2xl font-bold text-rose-100 mb-4">完善個人資料</h1>
     <p class="text-stone-400 mb-6">請填寫以下資料以建立您的健康檔案</p>
@@ -89,7 +92,10 @@
        <h2 class="text-lg font-bold text-stone-400">您的心臟健康小幫手</h2>
        <p class="text-sm text-stone-300">歡迎回來，<span id="user-name" class="font-medium text-purple-300">...</span> <span class="mx-2">•</span> <span id="last-update">最後更新：...</span></p>
       </div>
-      <button id="logout-button" class="border-l-4 border-rose-700 hover:bg-rose-900 text-rose-100 px-4 py-2 rounded-r h-full transition-colors duration-200"> 登出 </button>
+      <div class="flex items-center space-x-2">
+       <button id="theme-toggle" class="theme-toggle" title="切換淺色/深色模式">深</button>
+       <button id="logout-button" class="border-l-4 border-rose-700 hover:bg-rose-900 text-rose-100 px-4 py-2 rounded-r h-full transition-colors duration-200"> 登出 </button>
+      </div>
      </div>
     </div>
    </header>
@@ -217,7 +223,7 @@
      </div>
     </div><div id="page-ecg" class="tab-content hidden">
      <div class="mb-4">
-      <div class="flex space-x-2"><button id="ecg-play" class="px-3 py-2 bg-pink-600 text-rose-100 rounded-md text-sm">播放</button> <button id="ecg-pause" class="px-3 py-2 bg-rose-950 text-stone-400 rounded-md text-sm">暫停</button> <button id="ecg-download" class="px-3 py-2 bg-rose-950 text-stone-400 rounded-md text-sm hover:bg-pink-600 hover:text-rose-100 transition-colors duration-200">⬇ 下載 ECG 圖片</button>
+      <div class="flex space-x-2"><button id="ecg-play" class="px-3 py-2 bg-pink-600 text-rose-100 rounded-md text-sm">播放</button> <button id="ecg-pause" class="px-3 py-2 bg-rose-950 text-stone-400 rounded-md text-sm">暫停</button> <button id="ecg-download" class="px-3 py-2 bg-rose-950 text-stone-400 rounded-md text-sm hover:bg-pink-600 hover:text-rose-100 transition-colors duration-200">下載 ECG 圖片</button>
       </div>
      </div>
      <div class="bg-rose-950 rounded-lg shadow-lg p-4 mb-4">
@@ -282,6 +288,7 @@
   </div>
 
   <!-- JavaScript Modules (order matters: config -> api -> auth -> charts -> ecg -> risk -> health-data -> ui -> app) -->
+  <script src="js/theme.js"></script>
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
