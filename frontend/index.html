@@ -19,7 +19,7 @@
  <body class="min-h-screen font-sans">
 
   <!-- Global theme toggle (visible on login/registration) -->
-  <button id="theme-toggle-global" class="theme-toggle" style="position:fixed;top:1rem;right:1rem;z-index:50" title="切換淺色/深色模式">深</button>
+  <button id="theme-toggle-global" class="theme-toggle text-stone-300" style="position:fixed;top:1rem;right:1rem;z-index:50" title="切換淺色/深色模式">深</button>
 
   <!-- Login -->
   <div id="login-view" class="flex items-center justify-center min-h-screen">
@@ -93,7 +93,7 @@
        <p class="text-sm text-stone-300">歡迎回來，<span id="user-name" class="font-medium text-purple-300">...</span> <span class="mx-2">•</span> <span id="last-update">最後更新：...</span></p>
       </div>
       <div class="flex items-center space-x-2">
-       <button id="theme-toggle" class="theme-toggle" title="切換淺色/深色模式">深</button>
+       <button id="theme-toggle" class="theme-toggle text-stone-300" title="切換淺色/深色模式">深</button>
        <button id="logout-button" class="border-l-4 border-rose-700 hover:bg-rose-900 text-rose-100 px-4 py-2 rounded-r h-full transition-colors duration-200"> 登出 </button>
       </div>
      </div>
@@ -107,6 +107,7 @@
        <div class="flex items-center justify-between">
         <div>
          <p class="text-sm font-medium text-rose-100">靜息血壓</p>
+         <p class="text-xs text-stone-300">Resting BP</p>
          <p id="resting-bp" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300">mmHg</p>
         </div>
@@ -116,6 +117,7 @@
        <div class="flex items-center justify-between">
         <div>
          <p class="text-sm font-medium text-rose-100">平均心率</p>
+         <p class="text-xs text-stone-300">Average HR</p>
          <p id="avg-hr" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300">bpm</p>
         </div>
@@ -125,6 +127,7 @@
        <div class="flex items-center justify-between">
         <div>
          <p class="text-sm font-medium text-rose-100">最大心率</p>
+         <p class="text-xs text-stone-300">Max HR</p>
          <p id="max-hr" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300">bpm</p>
         </div>
@@ -133,7 +136,8 @@
       <div class="bg-rose-950 rounded-lg shadow-lg p-6">
        <div class="flex items-center justify-between">
         <div>
-         <p class="text-sm font-medium text-rose-100">ST slope</p>
+         <p class="text-sm font-medium text-rose-100">ST 斜率</p>
+         <p class="text-xs text-stone-300">ST slope</p>
          <p id="st-slope" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300"> </p>
         </div>
@@ -143,7 +147,8 @@
       <div class="bg-rose-950 rounded-lg shadow-lg p-6">
        <div class="flex items-center justify-between">
         <div>
-         <p class="text-sm font-medium text-rose-100">RestingECG</p>
+         <p class="text-sm font-medium text-rose-100">靜息 ECG</p>
+         <p class="text-xs text-stone-300">Resting ECG</p>
          <p id="resting-ecg" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300"> </p>
         </div>
@@ -152,7 +157,8 @@
       <div class="bg-rose-950 rounded-lg shadow-lg p-6">
        <div class="flex items-center justify-between">
         <div>
-         <p class="text-sm font-medium text-rose-100">心房顫動 (AF Detection)</p>
+         <p class="text-sm font-medium text-rose-100">心房顫動</p>
+         <p class="text-xs text-stone-300">AF Detection</p>
          <p id="af-detected" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300"> </p>
         </div>

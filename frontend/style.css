@@ -85,10 +85,6 @@ html.light-mode .bg-rose-800 {
     background-color: #fecdd3 !important;
 }
 
-html.light-mode input.bg-rose-800 {
-    background-color: #ffffff !important;
-}
-
 /* Info panels */
 html.light-mode .bg-purple-950 {
     background-color: #f3e8ff !important;
@@ -164,9 +160,9 @@ html.light-mode .bg-pink-600 {
 }
 
 /* Inputs */
-html.light-mode select,
+html.light-mode select.bg-rose-800,
 html.light-mode input[type="number"] {
-    background-color: #fecdd3 !important;
+    background-color: #ffffff !important;
     color: #1c1917 !important;
     border: 1px solid #fda4af;
 }
