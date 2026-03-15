@@ -1,0 +1,180 @@
+{
+  "paper": "s41598-025-13790-x",
+  "dataset": "reconstructed Kaggle heart disease dataset",
+  "rows": 918,
+  "exports": [
+    {
+      "model_name": "catboost_10f",
+      "model_path": "catboost_10f.cbm",
+      "features": [
+        "Age",
+        "Sex",
+        "ChestPainType",
+        "Cholesterol",
+        "FastingBS",
+        "RestingECG",
+        "MaxHR",
+        "ExerciseAngina",
+        "Oldpeak",
+        "ST_Slope"
+      ],
+      "categorical_features": [
+        "Sex",
+        "ChestPainType",
+        "FastingBS",
+        "RestingECG",
+        "ExerciseAngina",
+        "ST_Slope"
+      ],
+      "numeric_features": [
+        "Age",
+        "Cholesterol",
+        "MaxHR",
+        "Oldpeak"
+      ],
+      "threshold": 0.2,
+      "paper_params": {
+        "iterations": 600,
+        "learning_rate": 0.1,
+        "depth": 6,
+        "l2_leaf_reg": 3,
+        "verbose": false,
+        "loss_function": "Logloss",
+        "eval_metric": "AUC",
+        "random_seed": 42,
+        "allow_writing_files": false
+      },
+      "rows_before_resample": 918,
+      "rows_after_resample": 1016,
+      "category_maps": {
+        "Sex": {
+          "F": 0,
+          "M": 1
+        },
+        "ChestPainType": {
+          "ASY": 0,
+          "ATA": 1,
+          "NAP": 2,
+          "TA": 3
+        },
+        "FastingBS": {
+          "0": 0,
+          "1": 1
+        },
+        "RestingECG": {
+          "LVH": 0,
+          "Normal": 1,
+          "ST": 2
+        },
+        "ExerciseAngina": {
+          "N": 0,
+          "Y": 1
+        },
+        "ST_Slope": {
+          "Down": 0,
+          "Flat": 1,
+          "Up": 2
+        }
+      },
+      "numeric_imputer_stats": {
+        "Age": 53.510893246187365,
+        "Cholesterol": 198.7995642701525,
+        "MaxHR": 136.80936819172112,
+        "Oldpeak": 0.8873638344226579
+      },
+      "holdout_metrics": {
+        "rows": 204,
+        "class_0": 102,
+        "class_1": 102,
+        "accuracy": 0.9656862745098039,
+        "precision": 0.9611650485436893,
+        "recall": 0.9705882352941176,
+        "f1": 0.9658536585365853,
+        "roc_auc": 0.9767397154940408,
+        "threshold": 0.2
+      }
+    },
+    {
+      "model_name": "catboost_8f",
+      "model_path": "catboost_8f.cbm",
+      "features": [
+        "Age",
+        "Sex",
+        "ChestPainType",
+        "MaxHR",
+        "ExerciseAngina",
+        "Oldpeak",
+        "ST_Slope",
+        "RestingECG"
+      ],
+      "categorical_features": [
+        "Sex",
+        "ChestPainType",
+        "ExerciseAngina",
+        "ST_Slope",
+        "RestingECG"
+      ],
+      "numeric_features": [
+        "Age",
+        "MaxHR",
+        "Oldpeak"
+      ],
+      "threshold": 0.13,
+      "paper_params": {
+        "iterations": 600,
+        "learning_rate": 0.1,
+        "depth": 6,
+        "l2_leaf_reg": 3,
+        "verbose": false,
+        "loss_function": "Logloss",
+        "eval_metric": "AUC",
+        "random_seed": 42,
+        "allow_writing_files": false
+      },
+      "rows_before_resample": 918,
+      "rows_after_resample": 1016,
+      "category_maps": {
+        "Sex": {
+          "F": 0,
+          "M": 1
+        },
+        "ChestPainType": {
+          "ASY": 0,
+          "ATA": 1,
+          "NAP": 2,
+          "TA": 3
+        },
+        "ExerciseAngina": {
+          "N": 0,
+          "Y": 1
+        },
+        "ST_Slope": {
+          "Down": 0,
+          "Flat": 1,
+          "Up": 2
+        },
+        "RestingECG": {
+          "LVH": 0,
+          "Normal": 1,
+          "ST": 2
+        }
+      },
+      "numeric_imputer_stats": {
+        "Age": 53.510893246187365,
+        "MaxHR": 136.80936819172112,
+        "Oldpeak": 0.8873638344226579
+      },
+      "holdout_metrics": {
+        "rows": 204,
+        "class_0": 102,
+        "class_1": 102,
+        "accuracy": 0.9166666666666666,
+        "precision": 0.912621359223301,
+        "recall": 0.9215686274509803,
+        "f1": 0.9170731707317074,
+        "roc_auc": 0.9587658592848904,
+        "threshold": 0.13
+      }
+    }
+  ]
+}
