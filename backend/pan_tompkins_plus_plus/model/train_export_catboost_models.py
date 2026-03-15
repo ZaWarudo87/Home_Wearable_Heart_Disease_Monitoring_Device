@@ -151,21 +151,20 @@ def train_and_export(config_name: str, config: dict, df: pd.DataFrame, out_dir: 
 
 
 def main() -> None:
-    paper_dir = Path(__file__).resolve().parent
-    model_dir = paper_dir.parent
+    model_dir = Path(__file__).resolve().parent
     df = reconstruct_full_dataset(model_dir)
 
     export_summary = {
-        "paper": "s41598-025-13790-x",
+        "paper": "Heart Disease Prediction Using CatBoost Classifier with Hyperparameter Tuning and Feature Optimization",
         "dataset": "reconstructed Kaggle heart disease dataset",
         "rows": int(len(df)),
         "exports": [],
     }
 
     for model_name, config in MODEL_CONFIGS.items():
-        export_summary["exports"].append(train_and_export(model_name, config, df, paper_dir))
+        export_summary["exports"].append(train_and_export(model_name, config, df, model_dir))
 
-    summary_path = paper_dir / "exported_models.json"
+    summary_path = model_dir / "exported_models.json"
     summary_path.write_text(json.dumps(export_summary, indent=2))
     print(json.dumps(export_summary, indent=2))
     print(f"saved: {summary_path}")
