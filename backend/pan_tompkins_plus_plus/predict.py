@@ -14,29 +14,30 @@ MODEL_DIR = BASE_DIR / "model"
 OUT_DIR = BASE_DIR / "results_csv"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-MODEL_NAME = "catboost_8f"
 EXPORTS_PATH = MODEL_DIR / "exported_models.json"
 
 
-def load_model_bundle() -> tuple[CatBoostClassifier, dict]:
+def load_model_bundles() -> dict[str, dict]:
     if not EXPORTS_PATH.exists():
         raise FileNotFoundError(f"missing metadata: {EXPORTS_PATH}")
 
     metadata = json.loads(EXPORTS_PATH.read_text(encoding="utf-8"))
-    export_entry = next((item for item in metadata["exports"] if item["model_name"] == MODEL_NAME), None)
-    if export_entry is None:
-        raise KeyError(f"missing export config for {MODEL_NAME}")
+    bundles = {}
+    for export_entry in metadata["exports"]:
+        model_path = MODEL_DIR / export_entry["model_path"]
+        if not model_path.exists():
+            raise FileNotFoundError(f"missing model: {model_path}")
 
-    model_path = MODEL_DIR / export_entry["model_path"]
-    if not model_path.exists():
-        raise FileNotFoundError(f"missing model: {model_path}")
+        model = CatBoostClassifier()
+        model.load_model(str(model_path))
+        bundles[export_entry["model_name"]] = {
+            "model": model,
+            "config": export_entry,
+        }
+    return bundles
 
-    model = CatBoostClassifier()
-    model.load_model(str(model_path))
-    return model, export_entry
 
-
-MODEL, MODEL_CONFIG = load_model_bundle()
+MODEL_BUNDLES = load_model_bundles()
 
 
 def to_py(obj):
@@ -53,8 +54,17 @@ def to_py(obj):
     return obj
 
 
-def preprocess_input(raw_df: pd.DataFrame) -> pd.DataFrame:
-    features = MODEL_CONFIG["features"]
+def choose_model_name(raw_df: pd.DataFrame) -> str:
+    if {"Cholesterol", "FastingBS"}.issubset(raw_df.columns):
+        cholesterol = pd.to_numeric(raw_df["Cholesterol"], errors="coerce")
+        fasting_bs = pd.to_numeric(raw_df["FastingBS"], errors="coerce")
+        if cholesterol.notna().all() and fasting_bs.notna().all():
+            return "catboost_10f"
+    return "catboost_8f"
+
+
+def preprocess_input(raw_df: pd.DataFrame, model_config: dict) -> pd.DataFrame:
+    features = model_config["features"]
     prepared = pd.DataFrame(index=raw_df.index)
 
     for feature in features:
@@ -62,14 +72,14 @@ def preprocess_input(raw_df: pd.DataFrame) -> pd.DataFrame:
             raise KeyError(f"missing feature: {feature}")
         prepared[feature] = raw_df[feature]
 
-    for col, mapping in MODEL_CONFIG["category_maps"].items():
+    for col, mapping in model_config["category_maps"].items():
         series = prepared[col].astype(str).fillna("Missing")
         unknown_values = sorted(set(series.unique()) - set(mapping.keys()))
         if unknown_values:
             raise ValueError(f"unknown category in {col}: {unknown_values}")
         prepared[col] = series.map(mapping).astype(int)
 
-    for col, fill_value in MODEL_CONFIG["numeric_imputer_stats"].items():
+    for col, fill_value in model_config["numeric_imputer_stats"].items():
         prepared[col] = pd.to_numeric(prepared[col], errors="coerce").fillna(fill_value).astype(float)
 
     return prepared[features]
@@ -81,14 +91,18 @@ def risk_text_from_prob(prob: float, threshold: float) -> str:
 
 def predict(raw_df: pd.DataFrame, debug: bool = False) -> dict:
     calc_start = time.time()
-    X_ready = preprocess_input(raw_df.copy())
-    prob_pos = float(MODEL.predict_proba(X_ready)[0][1])
+    model_name = choose_model_name(raw_df)
+    bundle = MODEL_BUNDLES[model_name]
+    model_config = bundle["config"]
+    model = bundle["model"]
+    X_ready = preprocess_input(raw_df.copy(), model_config)
+    prob_pos = float(model.predict_proba(X_ready)[0][1])
     final_prob = round(prob_pos, 4)
-    threshold = float(MODEL_CONFIG["threshold"])
+    threshold = float(model_config["threshold"])
 
     feature_map = raw_df.iloc[0].to_dict()
     if debug:
-        features_used_values = {feature: feature_map.get(feature) for feature in MODEL_CONFIG["features"]}
+        features_used_values = {feature: feature_map.get(feature) for feature in model_config["features"]}
     else:
         features_used_values = None
 
@@ -97,7 +111,7 @@ def predict(raw_df: pd.DataFrame, debug: bool = False) -> dict:
         "ensemble": {
             "final_prob": to_py(final_prob),
             "risk_text": risk_text_from_prob(final_prob, threshold),
-            "model_name": MODEL_NAME,
+            "model_name": model_name,
             "threshold": threshold,
         },
     }

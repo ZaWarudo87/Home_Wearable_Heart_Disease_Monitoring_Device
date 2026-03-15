@@ -9,16 +9,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import database
 
 # Base profile (later supplied by frontend)
-base_patient_info = {
+DEFAULT_PATIENT_INFO = {
     "Age": 21,
     "Sex": "F",
     "ChestPainType": "NAP",
     "ExerciseAngina": "N",
     "RestingECG": False,
-    "RestingBP": 120,
-    "Cholesterol": 150,
-    "FastingBS": 150
+    "RestingBP": None,
+    "Cholesterol": None,
+    "FastingBS": None,
 }
+base_patient_info = DEFAULT_PATIENT_INFO.copy()
 
 # Pick majority in ST_label and RestingECG column
 # If tie, pick the one that appears last
