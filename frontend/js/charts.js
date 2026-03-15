@@ -25,8 +25,8 @@ async function initializeBPChart(period) {
                     legend: { display: false }
                 },
                 scales: {
-                    y: { beginAtZero: false, ticks: { color: '#d6d3d1' }, grid: { color: '#6b5563' } },
-                    x: { ticks: { color: '#d6d3d1' }, grid: { color: '#6b5563' } }
+                    y: { beginAtZero: false, ticks: { color: getThemeChartColors().tick }, grid: { color: getThemeChartColors().grid } },
+                    x: { ticks: { color: getThemeChartColors().tick }, grid: { color: getThemeChartColors().grid } }
                 }
             }
         });
@@ -72,8 +72,8 @@ async function initializeHR1minChart(period) {
                     legend: { display: false }
                 },
                 scales: {
-                    y: { beginAtZero: false, ticks: { color: '#d6d3d1' }, grid: { color: '#6b5563' } },
-                    x: { ticks: { color: '#d6d3d1' }, grid: { color: '#6b5563' } }
+                    y: { beginAtZero: false, ticks: { color: getThemeChartColors().tick }, grid: { color: getThemeChartColors().grid } },
+                    x: { ticks: { color: getThemeChartColors().tick }, grid: { color: getThemeChartColors().grid } }
                 }
             }
         });
@@ -106,8 +106,8 @@ async function initializeHR30minChart(period) {
                     legend: { display: false }
                 },
                 scales: {
-                    y: { beginAtZero: false, ticks: { color: '#d6d3d1' }, grid: { color: '#6b5563' } },
-                    x: { ticks: { color: '#d6d3d1' }, grid: { color: '#6b5563' } }
+                    y: { beginAtZero: false, ticks: { color: getThemeChartColors().tick }, grid: { color: getThemeChartColors().grid } },
+                    x: { ticks: { color: getThemeChartColors().tick }, grid: { color: getThemeChartColors().grid } }
                 }
             }
         });

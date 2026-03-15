@@ -49,3 +49,168 @@ input[type="number"] {
     -moz-appearance: textfield;
     appearance: none;
 }
+
+/* ========== Theme Toggle Button ========== */
+.theme-toggle {
+    background: none;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 9999px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+}
+.theme-toggle:hover {
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: scale(1.1);
+}
+
+/* ========== Light Mode Overrides ========== */
+html.light-mode body {
+    background: linear-gradient(to bottom right, #fff1f2, #ffe4e6);
+}
+
+/* Header */
+html.light-mode .bg-rose-950 {
+    background-color: #ffffff !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Cards & panels */
+html.light-mode .bg-rose-800 {
+    background-color: #fecdd3 !important;
+}
+
+html.light-mode input.bg-rose-800 {
+    background-color: #ffffff !important;
+}
+
+/* Info panels */
+html.light-mode .bg-purple-950 {
+    background-color: #f3e8ff !important;
+}
+html.light-mode .border-purple-600 {
+    border-color: #9333ea !important;
+}
+
+/* Success panel */
+html.light-mode .bg-green-900 {
+    background-color: #dcfce7 !important;
+}
+html.light-mode .border-green-600 {
+    border-color: #16a34a !important;
+}
+html.light-mode .text-green-200 {
+    color: #166534 !important;
+}
+
+/* ECG mode indicator */
+html.light-mode .bg-rose-900 {
+    background-color: #ffe4e6 !important;
+}
+html.light-mode .text-rose-200 {
+    color: #9f1239 !important;
+}
+
+/* Text colors */
+html.light-mode .text-rose-100 {
+    color: #1c1917 !important;
+}
+html.light-mode .text-rose-50 {
+    color: #0c0a09 !important;
+}
+html.light-mode .text-stone-300 {
+    color: #57534e !important;
+}
+html.light-mode .text-stone-400 {
+    color: #78716c !important;
+}
+html.light-mode .text-stone-600 {
+    color: #44403c !important;
+}
+html.light-mode .text-purple-100 {
+    color: #581c87 !important;
+}
+html.light-mode .text-purple-200 {
+    color: #6b21a8 !important;
+}
+html.light-mode .text-purple-300 {
+    color: #7e22ce !important;
+}
+html.light-mode .text-rose-300 {
+    color: #9f1239 !important;
+}
+
+/* Active tab */
+html.light-mode [id^="tab-"].bg-rose-800 {
+    background-color: #fda4af !important;
+    color: #1c1917 !important;
+}
+
+/* Inactive tabs */
+html.light-mode [id^="tab-"].bg-rose-950 {
+    background-color: #f5f5f4 !important;
+    color: #57534e !important;
+}
+
+/* Active period buttons */
+html.light-mode .bg-pink-600 {
+    background-color: #db2777 !important;
+    color: #ffffff !important;
+}
+
+/* Inputs */
+html.light-mode select,
+html.light-mode input[type="number"] {
+    background-color: #fecdd3 !important;
+    color: #1c1917 !important;
+    border: 1px solid #fda4af;
+}
+
+/* Login & Registration cards */
+html.light-mode #login-view .bg-rose-950,
+html.light-mode #registration-view .bg-rose-950 {
+    background-color: #ffffff !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Logout button */
+html.light-mode #logout-button {
+    border-color: #fda4af !important;
+    color: #1c1917 !important;
+}
+html.light-mode #logout-button:hover {
+    background-color: #ffe4e6 !important;
+}
+
+/* AI health suggestion box */
+html.light-mode .bg-rose-800.border-rose-600 {
+    background-color: #fff1f2 !important;
+    border-color: #fb7185 !important;
+}
+html.light-mode .border-rose-600 {
+    border-color: #fb7185 !important;
+}
+html.light-mode .border-rose-700 {
+    border-color: #fda4af !important;
+}
+
+/* Theme toggle in light mode */
+html.light-mode .theme-toggle {
+    border-color: rgba(0, 0, 0, 0.2);
+}
+html.light-mode .theme-toggle:hover {
+    border-color: rgba(0, 0, 0, 0.5);
+}
+
+/* ECG controls in light mode */
+html.light-mode #ecg-play.bg-pink-600 {
+    color: #ffffff !important;
+}
+html.light-mode #ecg-download:hover {
+    color: #ffffff !important;
+}

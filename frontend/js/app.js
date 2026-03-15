@@ -5,6 +5,9 @@ async function initializeApp(user) {
     document.getElementById('login-view').classList.add('hidden');
     document.getElementById('registration-view').classList.add('hidden');
     document.getElementById('dashboard-view').classList.remove('hidden');
+    // Hide global toggle, use header toggle instead
+    const globalToggle = document.getElementById('theme-toggle-global');
+    if (globalToggle) globalToggle.style.display = 'none';
 
     setupTabListeners();
     setupPeriodListeners();
