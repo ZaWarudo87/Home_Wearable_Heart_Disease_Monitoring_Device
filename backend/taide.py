@@ -26,12 +26,12 @@ def generate_text(system_prompt: str, user_prompt: str) -> str:
     }
 
     try:
-        response = requests.post(TAIDE_API_URL, json=payload, timeout=30)
+        response = requests.post(TAIDE_API_URL, json=payload, timeout=60)
         response.raise_for_status()
-        
+
         data = response.json()
         return data["choices"][0]["message"]["content"]
-        
+
     except requests.exceptions.RequestException as e:
         raise RuntimeError(f"Local TAIDE API request failed: {e}")
 

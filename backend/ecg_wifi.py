@@ -18,7 +18,7 @@ from AF_detection import AFRdRDetector
 flask_app = None
 
 # --- Configuration ---
-ESP32_IP = '192.168.56.1'
+ESP32_IP = '127.0.0.1'
 PORT = 80
 WINDOW_SECONDS = 10  # How many seconds to show on the live graph
 SAVE_DATA = False
@@ -69,31 +69,31 @@ _ecg_running_mean = None
 
 def init():
     ax.set_xlim(0, WINDOW_SECONDS)
-    ax.set_ylim(-2, 5) 
+    ax.set_ylim(-2, 5)
     return line,
 
 def connect_to_esp32():
     global client_socket, socket_file, connection_lost, reconnect_attempts
-    
+
     print(f"Connecting to {ESP32_IP}:{PORT}...")
-    
+
     try:
         if client_socket:
             try:
                 client_socket.close()
             except:
                 pass
-        
+
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.settimeout(CONNECTION_TIMEOUT)
         client_socket.connect((ESP32_IP, PORT))
         socket_file = client_socket.makefile('r')
-        
+
         connection_lost = False
         reconnect_attempts = 0
         print("Connection successful!")
         return True
-        
+
     except Exception as e:
         print(f"Connection failed: {e}")
         return False
@@ -101,10 +101,10 @@ def connect_to_esp32():
 def reconnect():
     global connection_lost
     connection_lost = True
-    
+
     print(f"Attempting to reconnect...")
     time.sleep(RECONNECT_DELAY)
-    
+
     return connect_to_esp32()
 
 def _has_nan(d: dict) -> bool:
@@ -146,17 +146,17 @@ def update_now_ecg(data: dict) -> None:
 
 def update(frame):
     global last_ts, last_ecg_chunk, last_temp_chunk, mode, connection_lost, last_af_result
-    
+
     if connection_lost:
         if not reconnect():
             return line,
-    
+
     try:
         if socket_file is None:
             return line,
-            
+
         line_data = socket_file.readline().strip()
-        
+
         if not line_data and not connection_lost:
             try:
                 client_socket.send(b'\n')
@@ -164,23 +164,23 @@ def update(frame):
                 print("Connection lost detected, preparing to reconnect...")
                 connection_lost = True
                 return line,
-        
+
         if line_data:
             # format: time_us,isExercise,voltage
             parts = line_data.split(',')
             if len(parts) != 3:
                 return line,
-            
+
             try:
                 t_us = int(parts[0])           # ESP32 timestamp in microseconds
                 is_exercise = int(parts[1])    # 0 = REST, 1 = EXERCISE
                 voltage_str = parts[2].strip() # voltage or "NaN"
             except ValueError:
                 return line,
-            
+
             # Determine new mode from isExercise flag
             new_mode = "exercise_ecg_data_" if is_exercise else "rest_ecg_data_"
-            
+
             # If mode switched, flush current buffer with the previous mode
             # Only flush if enough samples for meaningful R-peak detection (>= 2s at 160Hz)
             MIN_FLUSH_SAMPLES = 320
@@ -199,13 +199,13 @@ def update(frame):
                 temp_values.clear()
                 last_ts = time.time()
             mode = new_mode
-            
+
             # Skip lead-off samples
             if voltage_str == "NaN":
                 return line,
-            
+
             val = float(voltage_str)
-            
+
             # Use ESP32 timestamp for precise relative time (seconds)
             now_timestamp = time.time()
             now = now_timestamp - start_timestamp
@@ -222,22 +222,22 @@ def update(frame):
                 temp_values.clear()
                 last_ts = now_timestamp
                 # print(f"lec: {last_ecg_chunk}, ltc: {last_temp_chunk}")
-            
+
             temp_times.append(now)
             temp_values.append(val)
             _ecg_ws_deque.append((now, val))
-            
+
             if SAVE_DATA:
                 # Save to permanent lists
                 all_times.append(now)
                 all_values.append(val)
 
                 # Update plot data (showing only last WINDOW_SECONDS)
-                plot_slice_t = all_times[0:] 
+                plot_slice_t = all_times[0:]
                 plot_slice_v = all_values[0:]
-                
+
                 line.set_data(plot_slice_t, plot_slice_v)
-            
+
                 # Shift X-axis view
                 if now > WINDOW_SECONDS:
                     ax.set_xlim(now - WINDOW_SECONDS, now)
