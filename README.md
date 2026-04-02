@@ -19,6 +19,12 @@ Home Wearable Heart Disease Monitoring Device is an end-to-end ECG analytics sys
 - **Backend:** Flask APIs + WebSocket streaming for live ECG, mode status, and AF payloads
 - **Frontend:** Modular web dashboard with Google OAuth, charts, risk view, and real-time ECG display
 
+### Attribution
+
+- The `Pan-Tompkins++` R-peak detection module used in this project is adapted from the authors' public implementation accompanying:
+  - Khan, N., and Imtiaz, M. N. (2022). `Pan-Tompkins++: A Robust Approach to Detect R-peaks in ECG Signals`. arXiv:2211.03171
+- Our version is trimmed and integrated for this project's ECG feature extraction pipeline and deployment workflow.
+
 ### Key Components
 
 - `backend/pan_tompkins_plus_plus`: ECG feature extraction, model training, and risk prediction

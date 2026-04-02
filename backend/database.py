@@ -341,6 +341,24 @@ def get_window_features(user_id: int = now_user_id) -> pd.DataFrame:
     } for r in records])
 
 
+def get_model_user_info(user_id: int) -> dict:
+    profile = UserProfile.query.filter_by(user_id=user_id).first()
+    latest_health = HealthRecord.query.filter_by(user_id=user_id)\
+        .order_by(HealthRecord.timestamp.desc()).first()
+
+    user_info = {
+        "Age": profile.age if profile else 0,
+        "Sex": profile.sex if profile else "M",
+        "ChestPainType": profile.chest_pain_type if profile else "ASY",
+        "ExerciseAngina": "Y" if (profile.exercise_angina if profile else False) else "N",
+        "RestingECG": profile.resting_ecg if profile else False,
+        "RestingBP": latest_health.resting_bp if latest_health else None,
+        "Cholesterol": latest_health.cholesterol if latest_health else None,
+        "FastingBS": int(latest_health.fasting_bs) if latest_health is not None else None,
+    }
+    return user_info
+
+
 # ==================== Health Summary Functions ====================
 
 def get_health_summary(user_id: int) -> dict:
@@ -363,13 +381,7 @@ def get_health_summary(user_id: int) -> dict:
     
     global now_user_id
     now_user_id = user_id
-    user_info = {}
-    user_info["Age"] = UserProfile.query.filter_by(user_id=user_id).first().age if UserProfile.query.filter_by(user_id=user_id).first() else 0
-    user_info["Sex"] = UserProfile.query.filter_by(user_id=user_id).first().sex if UserProfile.query.filter_by(user_id=user_id).first() else "M"
-    user_info["ChestPainType"] = UserProfile.query.filter_by(user_id=user_id).first().chest_pain_type if UserProfile.query.filter_by(user_id=user_id).first() else "ASY"
-    user_info["ExerciseAngina"] = UserProfile.query.filter_by(user_id=user_id).first().exercise_angina if UserProfile.query.filter_by(user_id=user_id).first() else 0
-    user_info["ExerciseAngina"] = "Y" if user_info["ExerciseAngina"] != 0 else "N"
-    user_info["RestingECG"] = UserProfile.query.filter_by(user_id=user_id).first().resting_ecg if UserProfile.query.filter_by(user_id=user_id).first() else False
+    user_info = get_model_user_info(user_id)
     user_other_info = result_data.parse_user_info(user_info, get_window_features())
 
     update_hr_record()

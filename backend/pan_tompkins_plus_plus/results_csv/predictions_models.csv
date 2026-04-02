@@ -1,4 +1,0 @@
-﻿model,pred_label,prob_pos
-new_CatBoost.pkl,0,0.003154130031693771
-new_LogisticRegression.pkl,0,0.009224762685946446
-new_GradientBoosting.pkl,0,0.01162334280325279

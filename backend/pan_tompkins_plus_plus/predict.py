@@ -1,44 +1,47 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
 import cpuinfo
-import sys
 import json
 import pandas as pd
-import joblib
 import numpy as np
 import time
 
-# Ensemble of three trained models
-base_dir = Path(__file__).resolve().parent
-model_dir = base_dir / "model"
-out_dir = base_dir / "results_csv"
-out_dir.mkdir(parents=True, exist_ok=True)
-
-# Compatibility: models saved when fix_suspicious_numeric lived in __main__
-if str(model_dir) not in sys.path:
-    sys.path.insert(0, str(model_dir))
-try:
-    __import__("feature_utils")
-except Exception as e:
-    print("Error", e)
-
-model_paths = [
-    model_dir / "new_CatBoost.pkl",
-    model_dir / "new_LogisticRegression.pkl",
-    model_dir / "new_GradientBoosting.pkl",
-]
-
-models = []
-for i in range(len(model_paths)):
-    if not model_paths[i].exists():
-        print(f"[Warn] missing model: {model_paths[i]}")
-        continue
-    models.append(joblib.load(model_paths[i]))
+from catboost import CatBoostClassifier
 
 
-# Convert numpy types to native Python types for JSON 
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_DIR = BASE_DIR / "model"
+OUT_DIR = BASE_DIR / "results_csv"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+EXPORTS_PATH = MODEL_DIR / "exported_models.json"
+
+
+def load_model_bundles() -> dict[str, dict]:
+    if not EXPORTS_PATH.exists():
+        raise FileNotFoundError(f"missing metadata: {EXPORTS_PATH}")
+
+    metadata = json.loads(EXPORTS_PATH.read_text(encoding="utf-8"))
+    bundles = {}
+    for export_entry in metadata["exports"]:
+        model_path = MODEL_DIR / export_entry["model_path"]
+        if not model_path.exists():
+            raise FileNotFoundError(f"missing model: {model_path}")
+
+        model = CatBoostClassifier()
+        model.load_model(str(model_path))
+        bundles[export_entry["model_name"]] = {
+            "model": model,
+            "config": export_entry,
+        }
+    return bundles
+
+
+MODEL_BUNDLES = load_model_bundles()
+
+
 def to_py(obj):
-    if not obj:
+    if obj is None:
         return obj
     if isinstance(obj, (np.integer,)):
         return int(obj)
@@ -51,42 +54,55 @@ def to_py(obj):
     return obj
 
 
+def choose_model_name(raw_df: pd.DataFrame) -> str:
+    if {"Cholesterol", "FastingBS"}.issubset(raw_df.columns):
+        cholesterol = pd.to_numeric(raw_df["Cholesterol"], errors="coerce")
+        fasting_bs = pd.to_numeric(raw_df["FastingBS"], errors="coerce")
+        if cholesterol.notna().all() and fasting_bs.notna().all():
+            return "catboost_10f"
+    return "catboost_8f"
+
+
+def preprocess_input(raw_df: pd.DataFrame, model_config: dict) -> pd.DataFrame:
+    features = model_config["features"]
+    prepared = pd.DataFrame(index=raw_df.index)
+
+    for feature in features:
+        if feature not in raw_df.columns:
+            raise KeyError(f"missing feature: {feature}")
+        prepared[feature] = raw_df[feature]
+
+    for col, mapping in model_config["category_maps"].items():
+        series = prepared[col].astype(str).fillna("Missing")
+        unknown_values = sorted(set(series.unique()) - set(mapping.keys()))
+        if unknown_values:
+            raise ValueError(f"unknown category in {col}: {unknown_values}")
+        prepared[col] = series.map(mapping).astype(int)
+
+    for col, fill_value in model_config["numeric_imputer_stats"].items():
+        prepared[col] = pd.to_numeric(prepared[col], errors="coerce").fillna(fill_value).astype(float)
+
+    return prepared[features]
+
+
+def risk_text_from_prob(prob: float, threshold: float) -> str:
+    return "有風險" if prob >= threshold else "無風險"
+
+
 def predict(raw_df: pd.DataFrame, debug: bool = False) -> dict:
-    X_raw = raw_df.copy()
-    probs = []
     calc_start = time.time()
-
-    for i in range(len(model_paths)):
-        prob_pos = None
-        if hasattr(models[i], "predict_proba"):
-            proba = models[i].predict_proba(X_raw)[0]
-            prob_pos = float(proba[1]) if len(proba) >= 2 else float(proba[0])
-            probs.append(prob_pos)
-
-    if not probs:
-        print("[Error] no models loaded")
-        return
-
-    final_prob = float(sum(probs) / len(probs)) if probs else None
-    if final_prob is not None:
-        final_prob = round(final_prob, 2)
-    risk_text = None
-    if final_prob is not None:
-        risk_text = "高風險" if final_prob >= 0.4 else "低風險"
+    model_name = choose_model_name(raw_df)
+    bundle = MODEL_BUNDLES[model_name]
+    model_config = bundle["config"]
+    model = bundle["model"]
+    X_ready = preprocess_input(raw_df.copy(), model_config)
+    prob_pos = float(model.predict_proba(X_ready)[0][1])
+    final_prob = round(prob_pos, 4)
+    threshold = float(model_config["threshold"])
 
     feature_map = raw_df.iloc[0].to_dict()
-
     if debug:
-        features_used_values = {
-            "Age": float(feature_map.get("Age", 0)),
-            "MaxHR": float(feature_map.get("MaxHR", 0)),
-            "Oldpeak": float(feature_map.get("Oldpeak", 0)),
-            "Sex": str(feature_map.get("Sex", "")),
-            "ExerciseAngina": str(feature_map.get("ExerciseAngina", "")),
-            "ST slope": str(feature_map.get("ST_Slope", "")),
-            "ChestPainType": str(feature_map.get("ChestPainType", "")),
-            "RestingECG": str(feature_map.get("RestingECG", "")),
-        }
+        features_used_values = {feature: feature_map.get(feature) for feature in model_config["features"]}
     else:
         features_used_values = None
 
@@ -94,26 +110,31 @@ def predict(raw_df: pd.DataFrame, debug: bool = False) -> dict:
         "features_used_values": to_py(features_used_values),
         "ensemble": {
             "final_prob": to_py(final_prob),
-            "risk_text": risk_text,
-        }
+            "risk_text": risk_text_from_prob(final_prob, threshold),
+            "model_name": model_name,
+            "threshold": threshold,
+        },
     }
 
     calc_time = time.time() - calc_start
-    CALC_TIME_CSV = out_dir / "prediction_time.csv"
+    calc_time_csv = OUT_DIR / "prediction_time.csv"
     info = cpuinfo.get_cpu_info()
-    if not CALC_TIME_CSV.exists():
-        with open(CALC_TIME_CSV, "w") as f:
+    if not calc_time_csv.exists():
+        with open(calc_time_csv, "w", encoding="utf-8") as f:
             f.write("cpu,calc_time_seconds,date\n")
-    with open(CALC_TIME_CSV, "a") as f:
-        f.write(f"{info['brand_raw']} {info['arch']} {info['hz_advertised_friendly']},{calc_time},{time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    with open(calc_time_csv, "a", encoding="utf-8") as f:
+        f.write(
+            f"{info['brand_raw']} {info['arch']} {info['hz_advertised_friendly']},"
+            f"{calc_time},{time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        )
+
     return out_dict
 
 
 def main():
-    input_csv = base_dir / "results_csv" / "model_input_features.csv"
-    out_json = out_dir / "prediction_ensemble.json"
+    input_csv = OUT_DIR / "model_input_features.csv"
+    out_json = OUT_DIR / "prediction_ensemble.json"
 
-    # Read model input generated by collect_features.py
     if not input_csv.exists():
         print(f"[Error] missing input: {input_csv}")
         return
@@ -128,6 +149,7 @@ def main():
         json.dump(out_dict, f, ensure_ascii=False, indent=2)
     print("\n[Done] predictions saved:")
     print(f"  {out_json}")
+
 
 if __name__ == "__main__":
     main()
