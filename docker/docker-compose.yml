@@ -14,6 +14,15 @@ services:
       - ./logs:/app/logs
       - ./data:/app/data
 
+  ecg-receiver:
+    build: .
+    container_name: ecg_mdns_receiver
+    environment:
+      - AVAHI_COMPAT_NOWARN=1
+    restart: unless-stopped
+    volumes:
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
   portainer:
     container_name: portainer
     image: portainer/portainer-ce:latest

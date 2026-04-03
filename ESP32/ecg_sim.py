@@ -4,6 +4,7 @@ import os
 import random
 import socket
 import time
+from zeroconf import ServiceInfo, Zeroconf
 
 # --- config ---
 HOST = "0.0.0.0"
@@ -29,7 +30,7 @@ def load_random_csv(folder: str, is_rest: bool = True) -> list:
     data_points = []
     try:
         with open(selected_file, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)            
+            reader = csv.DictReader(f)
             for row in reader:
                 try:
                     if is_rest:
@@ -42,7 +43,7 @@ def load_random_csv(folder: str, is_rest: bool = True) -> list:
     except Exception as e:
         print(f"Failed to read file: {e}")
         return None
-        
+
     print(f"Successfully read {len(data_points)} data points.")
     return data_points
 
@@ -69,15 +70,34 @@ def start_server() -> None:
             print(f"Error: No .csv files found in '{folder}'.")
             return
 
+    service_type = "_http._tcp.local."
+    service_name = "heart-monitor-esp32." + service_type
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    local_ip = s.getsockname()[0]
+    s.close()
+
+    info = ServiceInfo(
+        type_=service_type,
+        name=service_name,
+        addresses=[local_ip],
+        port=80,
+        properties={'description': 'Pseudo ESP32 Heart Monitor'},
+        server="heart-monitor-esp32.local.",
+    )
+    zeroconf = Zeroconf()
+
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     try:
+        zeroconf.register_service(info)
         server_socket.bind((HOST, PORT))
         server_socket.listen(1)
         server_socket.settimeout(1.0)
         print(f"\n--- Python ECG Simulator Started ---")
-        print(f"IP: {socket.gethostbyname(socket.gethostname())}")
+        print(f"IP: {local_ip}")
         print(f"Port: {PORT}")
         print("Waiting for client connection...")
 
@@ -87,11 +107,11 @@ def start_server() -> None:
                 print(f"\nConnection successful! From: {client_address}")
             except socket.timeout:
                 continue
-            
+
             try:
                 t_us = 0
                 print("Starting data stream...")
-                
+
                 while True:
                     # --- REST ---
                     rest_data = load_random_csv(REST_FOLDER, True)
@@ -106,7 +126,7 @@ def start_server() -> None:
                         break
                     print("[EXERCISE] Streaming...")
                     t_us = stream_data(client_socket, exercise_data, True, t_us)
-                        
+
             except (ConnectionResetError, BrokenPipeError):
                 print("Client disconnected. Waiting for new connection...")
             except KeyboardInterrupt:
@@ -118,6 +138,8 @@ def start_server() -> None:
         print(f"Error: {e}")
     finally:
         server_socket.close()
+        zeroconf.unregister_service(info)
+        zeroconf.close()
 
 if __name__ == "__main__":
     start_server()

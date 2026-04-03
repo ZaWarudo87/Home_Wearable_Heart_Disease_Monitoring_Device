@@ -3,11 +3,13 @@ FROM python:3.12-slim
 ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y \
-    curl \
-    wget \
-    procps \
     build-essential \
+    curl \
+    libavahi-client3 \
+    libavahi-common3 \
+    procps \
     python3-dev \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 RUN wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${TARGETARCH} -O /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
