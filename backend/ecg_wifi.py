@@ -12,7 +12,7 @@ from matplotlib.animation import FuncAnimation
 
 import database
 import pan_tompkins_plus_plus.address_features as af
-from AF_detection import AFCVDetector
+from AF_detection import AFRdRDetector
 
 # --- Flask App Reference (set by backend_main.py) ---
 flask_app = None
@@ -49,14 +49,12 @@ now_ecg_data = {
 }
 mode = "rest_ecg_data_"
 exec = ThreadPoolExecutor()
-af_detector = AFCVDetector(fs_hz=160, window_beats=100, min_new_rr_for_update=10)
+af_detector = AFRdRDetector(fs_hz=160, window_beats=128, nec_threshold=65, min_new_rr_for_update=10)
 last_af_result = {
     "af_detected": False,
-    "af_raw": False,
-    "cv_rr": None,
+    "nec": None,
     "beats_used": 0,
-    "vote_positive": 0,
-    "vote_total": 0,
+    "threshold": 65,
 }
 
 # Connection state

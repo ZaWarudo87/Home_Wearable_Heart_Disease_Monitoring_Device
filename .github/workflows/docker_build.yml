@@ -1,8 +1,8 @@
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "ci/docker-build" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "ci/docker-build" ]
 
 jobs:
   build:

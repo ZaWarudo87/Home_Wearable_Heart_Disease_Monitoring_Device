@@ -148,7 +148,10 @@ def get_health_risk():
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
-    return jsonify(result_data.get_health_risk(database.get_window_features(user_data["id"])))
+    return jsonify(result_data.get_health_risk(
+        database.get_window_features(user_data["id"]),
+        database.get_model_user_info(user_data["id"]),
+    ))
 
 @app.route('/api/v1/charts/bp', methods=['GET'])
 def get_chart_bp():
