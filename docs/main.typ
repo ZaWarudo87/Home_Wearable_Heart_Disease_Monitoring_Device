@@ -66,6 +66,79 @@ Therefore, we propose an integrated framework that enables long-term ECG monitor
 
 　　在模型部署方面，本作品保留兩組 CatBoost 模型。8-feature 模型作為部署版本，適用於僅有基本資料與 ECG 特徵的情況；10-feature 模型則於使用者同時提供 Cholesterol 與 FastingBS 等額外健康資料時啟用，以獲得較高辨識效能。兩組模型大小約 650KB 等級，可於邊緣裝置進行推論。
 
+= Feature Extraction
+
+== Preprocessing and Filters
+
+Before extracting features, raw ECG signals must undergo noise filtering to ensure the accuracy of subsequent feature calculations.
+Our project initially utilized a 5-12 Hz filter to process the QRS segment. However, this frequency band over-suppressed the T-wave, causing the false removal of genuine ST depression or ST elevation features.
+To address this, we designed an independent 0.5-35 Hz filtering interval specifically for the ST Slope calculation, preserving complete and genuine ST segment features.
+
+== Feature Extraction Methods
+
+Our processing pipeline primarily extracts four key features: Maximum Heart Rate, Oldpeak, ST Slope, and Resting Electrocardiogram (RestingECG). The R-peak measured by `Pan-Tompkins++` serves as the reference point for calculating all subsequent features (like heart rate and segment windows). The extraction mechanisms, challenges, and optimization processes are detailed below.
+
+=== Maximum Heart Rate
+
+#h(2em) *Definition*: The maximum heart rate achieved during the measurement period, typically yielding a numeric value between 60 and 202.
+
+*Extraction Method*: By utilizing the `Pan-Tompkins++` algorithm, we were able to detect R-peaks, which are subsequently converted into the heart rate.
+
+=== Oldpeak
+
+#h(2em) *Definition*: Oldpeak represents the ST depression caused by activity in comparison to rest. A value > 0 may indicate angina, while a value < 0 is potentially related to myocardial infarction.
+Oldpeak quantifies the absolute displacement of the ST segment relative to the electrically neutral PR baseline. In a healthy heart, the ST segment should be perfectly flush with the PR segment. When the heart muscle is stressed or deprived of oxygen (especially during the exercise phase of stress testing), the ST segment will deviate.
+
+*Extraction Method*: It is calculated based on relative R-peak positions using the following formula:
+$ "Oldpeak" = V_("ST level") - V_("PR baseline") $
+Here, _PR baseline_ is the average potential between 200 ms and 120 ms prior to the R-peak, and _ST level_ is the average potential between 100 ms and 160 ms after the R-peak. 
+This timing window is crucial for accurately measuring the ST segment's displacement, and is suggested by multiple medical literature sources. @hu2015morphological @zong2014real @campero2022interpretable
+
+=== ST Slope
+
+#h(2em) *Definition*: The slope of the peak exercise ST segment, classified into three categories: Up, Flat, or Down. While the Oldpeak measures the absolute drop or rise of the ST segment, the ST_Slope measures its morphological trajectory. How the ST segment behaves dynamically over time is a critical predictor of coronary artery disease.
+
+*Algorithmic Execution*: Instead of taking a single average, the algorithm extracts all voltage data points within the defined ST Window and applies an Ordinary Least Squares linear regression to find the line of best fit:
+$ V(t)=m t+b $
+Here, t represents time, V(t) is the voltage, b is the y-intercept, and m is the computed slope.
+
+*Diagnostic Classification*: We categorize the ST slope into three categories: Up (upsloping), Flat, or Down (downsloping). 
+- _Upsloping_: $m > 0.5 V/s$. (Often seen in normal, healthy exercise responses, even if slight ST depression is present).
+- _Downsloping_: $m < −0.5 V/s$. (A highly specific indicator of severe ischemic heart disease).
+- _Flat_: $abs(m) <=0.5 V/s$. (Also a strong indicator of ischemia, as a healthy ST segment should naturally slope upward into the T-wave).
+
+=== Resting Electrocardiogram (RestingECG)
+
+#h(2em) *Definition*: RestingECG is categorized into Normal, ST (having ST-T wave abnormality, such as T-wave inversion or ST elevation/depression > 0.05 mV), and LVH (showing probable or definite left ventricular hypertrophy by Estes' criteria).
+
+*T-wave Difficulties*: T-waves are low-frequency, low-amplitude signals that are highly susceptible to baseline wandering, which is a type of low-frequency noise primarily caused by the user's respiration and minor electrode movements.
+
+*Solution*: 
++ Initial Attempt: To stabilize the T-wave for accurate inversion detection, we integrated a Wavelet Transform-based Baseline Wandering Removal algorithm (utilizing the open-source py-bwr library).
++ The Trade-off: While BWR successfully clarified the T-wave inversion morphology, testing revealed a critical flaw: the mathematical transformation aggressively warped the raw voltage levels, severely degrading the accuracy of ST elevation/depression measurements. Overall model accuracy dropped from 92.39% without BWR to 83.42% with global BWR.
++ Final Pipeline: To resolve this, the system employs a bifurcated processing strategy. Baseline correction is applied only in parallel streams specifically evaluating T-wave morphology, while the original minimally filtered signal (0.5–35 Hz) is strictly preserved for calculating absolute ST segment offsets.
+
+#figure(
+  image("pics/TWave.png"),
+  caption: [The bifurcated processing strategy for T-wave morphology correction.],
+) 
+
+#h(2em) *LVH Difficulties*: And for LVH, since it requires precordial leads—specifically V1, V5, and V6, we implemented a practical software-based workaround. During the initial profile registration on our web interface, the system proactively prompts users to input their known medical history, including any prior LVH diagnoses. This approach ensures that the machine learning model still receives the complete data array required for a comprehensive risk assessment.
+
+=== Validation: 
+We validated the accuracy of the STE/STD feature by comparing it with the European ST-T Database. The accuracy of recognizing ST Elevation/Depression was found to be 99.16% and recall of ST Elevation/Depression was 91.6%.
+
+#figure(
+  image("pics/ST_CM.png", width: 70%),
+  caption: [Confusion matrix for ST Elevation/Depression recognition.],
+)
+
+// Maybe also plot with annotations
+#figure(
+  image("pics/Plot_with_annotations.png"),
+  caption: [Examples of ECG signal with features annotated.],
+)
+
 = 模型訓練流程與技術
 　　本作品之心臟疾病風險評估模型開發流程包含：重建完整標註之公開心臟疾病資料集、進行 label encoding 與 mean imputation、執行 random oversampling、進行 80/20 holdout split、透過 cross validation、hyperparameter optimization 與 model comparison 選定最佳模型，最後完成 performance evaluation、model selection 與 threshold tuning，得到最終部屬的模型，此模型預測結果於公開心臟疾病資料集上可達約 96.6% accuracy 與 97.1% recall。相關方法與研究背景可參考 @hamid2025catboost 與 @wan2025review。
 
