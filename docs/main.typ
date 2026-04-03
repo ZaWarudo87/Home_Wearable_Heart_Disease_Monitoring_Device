@@ -7,11 +7,17 @@
   title: [心悸寶貝--作品企劃書],
 )
 
-= 作品摘要
-　　本作品「心悸寶貝」為一套以穿戴式單導程 ECG 監測為核心之智慧健康系統，兼具低成本與高準確度兩大優勢，結合 AD8232 ECG 感測模組、ESP32、Raspberry Pi 3B、ECG 訊號處理演算法與輕量化人工智慧模型，僅用不到兩千元的成本，即可提供日常心電監測、心臟疾病風險評估、心房顫動 (AF) 偵測、異常心電圖匯出和記錄其他健康數據等多種實用功能。相較於市售多數穿戴式裝置多以短時間量測、心率顯示或單一事件提醒為主，本作品可支援長時間連續 ECG 監測，並進一步將原始生理訊號轉換為可解讀之風險資訊。系統採邊緣運算即時分析架構，兼顧輕量化、即時性、隱私性與低成本部署需求。本作品之心臟疾病風險評估模型可達約 96.6% accuracy 與 97.1% recall；AF 偵測部分於 MIT-BIH atrial fibrillation database 的 128-beat 驗證設定下達約 95.7% 準確率，顯示本系統具備實際健康管理與早期異常預警之應用潛力。
+= Motivation and Objectives 
+　　Cardiovascular diseases (CVDs) remain the leading cause of mortality worldwide, highlighting the critical need for effective continuous monitoring and early detection. Recent advances in wearable technologies have made electrocardiogram (ECG) monitoring increasingly accessible in daily life.
 
-= 開發動機
-　　心血管疾病長期位居全球主要死因之一，然而多數相關疾病在早期階段缺乏明顯症狀，患者往往在臨床症狀明顯或病情惡化後才就醫，錯失最佳介入時機。對於高齡者、心血管疾病高風險族群與術後追蹤患者而言，若能在日常生活中長時間、低負擔地進行 ECG 監測，將有助於提早發現異常與降低急性事件風險。現有解決方案大致可分為三類。第一類為醫療院所內 ECG 檢查，量測品質高，但成本較高且不利於長時間日常監測；第二類為 Holter monitor，雖可長時間量測，但設備取得與使用門檻較高；第三類為市售智慧穿戴式裝置，雖具方便性，但多偏向短時間量測、心率監測或有限事件偵測，缺少完整的特徵分析、心臟疾病風險評估與後續就醫輔助功能。
+However, most existing wearable ECG systems are limited to short-duration recordings, typically around one minute, and provide only basic real-time analysis, such as heart rate estimation. While some devices support arrhythmia detection, their functionality is often primarily limited to detecting persistent atrial fibrillation (AF), without the capability to identify more complex or transient conditions.
+
+Atrial fibrillation (AF) is commonly classified into paroxysmal, persistent, and permanent forms according to episode duration and termination behavior @markides2003atrial. Paroxysmal AF refers to episodes that terminate spontaneously, typically within several days, whereas persistent and permanent AF require clinical intervention or cannot be terminated. Due to its intermittent nature, paroxysmal AF is particularly challenging to detect using conventional short-duration monitoring systems, and such episodes are therefore frequently missed. This limitation is critical, as early detection of transient arrhythmias and comprehensive cardiovascular risk assessment are essential for timely medical intervention and long-term disease prevention.
+
+Therefore, we propose an integrated framework that enables long-term ECG monitoring and incorporates two components: an atrial fibrillation detection module and a cardiovascular disease prediction model. The AF detection module focuses on identifying both paroxysmal and persistent atrial fibrillation from continuous ECG signals, while the cardiovascular disease prediction model provides a comprehensive assessment of cardiovascular conditions based on extracted features. Our proposed system offers a more complete solution for both real-time arrhythmia detection and cardiovascular risk evaluation.
+
+= System Design
+　　心血管疾病長期位居全球主要死因之一，然而多數相關疾病在早期階段缺乏明顯症狀，患者往 往在臨床症狀明顯或病情惡化後才就醫，錯失最佳介入時機。對於高齡者、心血管疾病高風險族群與術後追蹤患者而言，若能在日常生活中長時間、低負擔地進行 ECG 監測，將有助於提早發現異常與降低急性事件風險。現有解決方案大致可分為三類。第一類為醫療院所內 ECG 檢查，量測品質高，但成本較高且不利於長時間日常監測；第二類為 Holter monitor，雖可長時間量測，但設備取得與使用門檻較高；第三類為市售智慧穿戴式裝置，雖具方便性，但多偏向短時間量測、心率監測或有限事件偵測，缺少完整的特徵分析、心臟疾病風險評估與後續就醫輔助功能。
 
 因此，本作品解決了以下問題：
 + 如何在低成本穿戴式架構下取得可用的 ECG 訊號。
