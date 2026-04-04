@@ -17,7 +17,7 @@ from simple_websocket import Server
 
 import database
 import ecg_wifi
-import gemini
+import taide
 import login as login_service
 import pseudo_data
 import result_data
@@ -248,7 +248,7 @@ def ecg_stream(ws: Server):
     finally:
         print("Client disconnected.")
 
-# --- Health Advice by Gemini ---
+# --- Health Advice by Taide ---
 @app.route('/api/v1/health/advice', methods=['POST'])
 def post_health_advice():
     # Check authentication
@@ -269,7 +269,7 @@ def post_health_advice():
         # "risk": data.get("risk"),
     }
 
-    advice_text = gemini.health_summary(payload)
+    advice_text = taide.health_summary(payload)
     return jsonify({"ai_summary": advice_text})
 
 # --- Main ---
