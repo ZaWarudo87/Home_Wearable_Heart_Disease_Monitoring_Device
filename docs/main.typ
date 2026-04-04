@@ -1,4 +1,4 @@
-#import "figures.typ"
+﻿#import "figures.typ"
 #import "template.typ"
 #show: template.init
 #set document(
@@ -139,23 +139,111 @@ We validated the accuracy of the STE/STD feature by comparing it with the Europe
   caption: [Examples of ECG signal with features annotated.],
 )
 
-= 模型訓練流程與技術
-　　本作品之心臟疾病風險評估模型開發流程包含：重建完整標註之公開心臟疾病資料集、進行 label encoding 與 mean imputation、執行 random oversampling、進行 80/20 holdout split、透過 cross validation、hyperparameter optimization 與 model comparison 選定最佳模型，最後完成 performance evaluation、model selection 與 threshold tuning，得到最終部屬的模型，此模型預測結果於公開心臟疾病資料集上可達約 96.6% accuracy 與 97.1% recall。相關方法與研究背景可參考 @hamid2025catboost 與 @wan2025review。
+= Model Training Methodology and Techniques
+
+#par(first-line-indent: 0em)[*1. Preprocessing*]
+First, public heart disease datasets were reconstructed into a comprehensive labeled dataset (918 records) with standardized feature naming and data types. Categorical variables were transformed into numerical representations via label encoding, while missing numerical values were handled using mean imputation to prevent training bias resulting from data omissions. 
+To address the issue of class imbalance, oversampling was employed during the training phase. This approach ensures a more balanced distribution of positive and negative classes, thereby enhancing the model's ability to identify minority classes.
+
+#par(first-line-indent: 0em)[*2. Training*]
+Regarding data partitioning, this study adopted an 80/20 holdout split (80% training set; 20% test set) consistent with existing literature, performing cross-validation and hyperparameter optimization within the training set. A progressive evolution strategy was applied to model development; initially, multiple baseline models were evaluated, including Logistic Regression, Gradient Boosting, CatBoost, and an average probability Ensemble model. Through comprehensive comparison, CatBoost exhibited the highest potential. 
+Consequently, the final deployed model in this study evolved directly from the CatBoost baseline. By performing further fine-tuning, we effectively improved the consistency between offline evaluation and deployment behavior. The final deployed CatBoost model converged with the following hyperparameters: (iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42).
 
 #figure(
   image("pics/model_training.png"),
-  caption: [模型開發與訓練流程圖]
+  caption: [Flowchart of Model Development and Training],
 ) <model_training>
 
-= AF 偵測方法與驗證
-　　AF 偵測部分參考公開文獻之 RR interval 方法，以 128-beat window 為基礎，將 RR 與 dRR 建立為 RdRmap，再以 25ms grid 統計 non-empty cells (NEC) 進行判斷。此方法不需大型深度學習模型即可完成節律異常辨識，具低計算量與邊緣部署優勢 @lian2011af。
+#par(first-line-indent: 0em)[*3. Classification*]
+To balance prediction accuracy and system robustness, a Dual-model Routing mechanism was designed for the inference stage. When a user provides a complete set of clinical features, the system prioritizes the 10-Feature Model to deliver the best predictive performance. Conversely, if specific fields are missing, the system automatically switches to the 8-Feature Model, which utilizes data directly captured by our device's sensors to ensure stable and continuous output even under conditions of incomplete information.
+
+#par(first-line-indent: 0em)[*4. Performance Evaluation*]
+Accuracy, Precision, Recall, F1-score, and ROC-AUC were utilized as metrics for performance evaluation. Results on the holdout test set clearly illustrate the model's evolution trajectory: starting from the initial CatBoost baseline model (Accuracy 85.87%, Recall 85.29%), moving through fine-tuning, and culminating in threshold tuning. The final deployed 10-Feature model significantly pushed Accuracy and Recall to 96.57% and 97.06%, respectively.
+
+#text(size: 10pt)[Table 1. Results of hyper-parameter optimization for machine learning models]
+
+  #set text(size: 8pt)
+  #table(
+    columns: (2.7fr, 4.3fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+    align: (left, left, center, center, center, center, center),
+    stroke: 0.5pt,
+    fill: (_, y) => if y == 0 { luma(230) } else { none },
+    [*Model*], [*Parameter*], [*Accuracy*], [*AUC*], [*Precision*], [*Recall*], [*F1*],
+
+    [CatBoost], [{verbose=False, random_state=369}], [85.87], [90.35], [88.78], [85.29], [87.00],
+    [LogisticRegression], [{max_iter=5000, random_state=369}], [87.50], [92.53], [89.11], [88.24], [88.67],
+    [GradientBoosting], [{random_state=369}], [85.33], [91.69], [90.32], [82.35], [86.15],
+    [Ensemble], [ ], [86.96], [92.06], [90.62], [85.29], [87.88],
+    [CatBoost after fine-tuning (before threshold tuning)], [(iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42)], [91.67], [88.08], [95.70], [87.25], [91.28],
+    [CatBoost after fine-tuning (after threshold tuning)], [(iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42, threshold=0.20)], [96.57], [97.67], [96.12], [97.06], [96.59],
+  )
+
+#set text(size: 12pt)
+#figure(
+  image("pics/roc_comparison_single_chart.png", width: 75%),
+  caption: [ROC curve comparison on test set],
+) <roc_compare>
+
+
+= AF Detection Methodology and Validation
+
+#h(2em)During the early development of the Atrial Fibrillation (AF) detection module, the Coefficient of Variation (CV) test method was initially employed @tateno2001automatic. While this method is fast to implement and computationally efficient, its decision criteria are fundamentally based on a single statistic. This makes it prone to misidentifying ectopic rhythms, such as Premature Ventricular Contractions (PVCs), as AF, leading to a high false alarm rate in practical applications.
+
+To address this issue, a multi-feature integration approach proposed by Dash et al. @dash2009automatic was subsequently explored, which utilizes TPR, RMSSD, and Shannon Entropy (SE) to improve discriminatory power. As shown in Table 2, this integrated approach achieved excellent classification results on the AFDB dataset. However, this method involves complex feature extraction and precise parameter tuning, incurring high engineering overhead and significantly longer computation times.
+
+After a comprehensive evaluation of classification performance, false alarm control, algorithmic complexity, and maintenance costs, the RdR+NEC method @lian2011af was ultimately selected for this work. This method offers the dual advantages of simple decision rules and extremely low computational complexity. As verified by the computation time comparison in Table 2, the current RdR+NEC version maintains high accuracy and balanced sensitivity and specificity while satisfying the requirements for real-time execution on edge devices. It has thus been adopted as the deployment method.
+
+#text(size: 10pt)[Table 2. Sensitivity, specificity and accuracy values for different methods from MIT-BIH dataset]
+
+#table(
+  columns: (2fr, 1fr, 1fr, 1fr, 1.8fr),
+  align: (left, center, center, center, center),
+  stroke: 0.5pt,
+  fill: (_, y) => if y == 0 { luma(230) } else { none },
+  [*Method*], [*Sensitivity*], [*Specificity*], [*Accuracy*], [#par(justify: false)[*Computation time comparison*]],
+
+  [CV test], [90.91], [77.67], [78.62], [0.294 ms/window],
+  [RMSSD+TPR+SE], [98.99], [87.12], [87.97], [10.107 ms/window],
+  [RdR+NEC (current)], [95.72], [95.74], [95.73], [1.167 ms/window],
+)
+
+#h(2em)The specific technical details and parameter settings of the RdR+NEC algorithm are as follows:
+
+#par(first-line-indent: 0em)[*1. RdR Map Construction*]
+Unlike the traditional Lorenz plot which utilizes a single dimension, this method maps successive RR intervals ($"RR"_i$) and their differences ($"dRR"_i = "RR"_i - "RR"_(i-1)$) simultaneously onto a two-dimensional coordinate system. This design captures both heart rate and heart rate variability (HRV) information. During AF episodes, irregular rhythms cause data points to scatter randomly across a wide area of the map; conversely, normal or regular rhythms typically present as dense, localized clusters.
+
+#par(first-line-indent: 0em)[*2. Gridding and Non-empty Cells (NEC)*]
+The system divides the RdR map into a two-dimensional grid. For each input segment containing 128 cardiac cycles (128-beat window), the number of Non-empty Cells (NEC) is calculated. This count quantifies the degree of dispersion to classify the rhythm as AF or non-AF.
+
+#par(first-line-indent: 0em)[*3. Threshold Determination*]
+Based on the optimization analysis in @lian2011af, an NEC threshold of 65 was determined to provide optimal performance for a 128-beat window configuration.
+
+#par(first-line-indent: 0em)[*4. Edge Deployment Advantages*]
+Compared to methods requiring extensive feature extraction or complex floating-point operations, RdR+NEC relies solely on a single integer count of NECs for classification. Its low computational overhead enables high-precision monitoring while satisfying the real-time and long-term monitoring requirements of battery-powered wearable devices.
 
 #figure(
   image("pics/af_detect.png"),
-  caption: [心房顫動 (AF) 偵測示意圖]
+  caption: [Schematic Diagram of Atrial Fibrillation (AF) Detection],
 ) <af_detect>
 
-　　在驗證方面，AF 偵測部分參考公開文獻之 RR interval 方法，並於 MIT-BIH atrial fibrillation database 的 128-beat 驗證設定下達約 95.7% 準確率，完成文獻方法之重現與驗證 @lian2011af。上述結果顯示，本作品在維持邊緣部署可行性的同時，仍具備良好的節律異常辨識能力。
+#h(2em)To confirm the algorithm's generalization capabilities, verification was conducted across multiple public datasets. As indicated in Table 3, the RdR+NEC method demonstrates highly stable and superior detection performance across diverse data distributions.
+
+#text(size: 10pt)[Table 3. Performance validation results of the RdR+NEC method across public datasets]
+
+#table(
+  columns: (2fr, 1fr, 1fr),
+  align: (left, center, center),
+  stroke: 0.5pt,
+  fill: (_, y) => if y == 0 { luma(230) } else { none },
+  [*Database*], [*Sensitivity*], [*Specificity*],
+
+  [NSRDB], [NA\*], [88.10],
+  [NSR2DB], [NA\*], [96.30],
+  [AFDB], [95.70], [95.70],
+  [Combined database], [95.70], [94.20],
+)
+
+\* #text(size: 10pt)[NA: Sensitivity is not applicable because no true AF episodes are present.]
 
 = 量化成果與效能驗證
 　　本作品目前主要量化成果如下：

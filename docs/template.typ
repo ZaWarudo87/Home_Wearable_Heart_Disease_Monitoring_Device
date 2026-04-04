@@ -32,6 +32,7 @@
     it
   }
   #show figure: set block(breakable: true)
+  #show figure.caption: set text(size: 10pt)
   #show heading: set block(above: 1.5em, below: 1em)
   #show heading: set text(weight: "bold")
   #doc
