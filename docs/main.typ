@@ -17,15 +17,7 @@ Atrial fibrillation (AF) is commonly classified into paroxysmal, persistent, and
 Therefore, we propose an integrated framework that enables long-term ECG monitoring and incorporates two components: an atrial fibrillation detection module and a cardiovascular disease prediction model. The AF detection module focuses on identifying both paroxysmal and persistent atrial fibrillation from continuous ECG signals, while the cardiovascular disease prediction model provides a comprehensive assessment of cardiovascular conditions based on extracted features. Our proposed system offers a more complete solution for both real-time arrhythmia detection and cardiovascular risk evaluation.
 
 = System Design
-　　心血管疾病長期位居全球主要死因之一，然而多數相關疾病在早期階段缺乏明顯症狀，患者往 往在臨床症狀明顯或病情惡化後才就醫，錯失最佳介入時機。對於高齡者、心血管疾病高風險族群與術後追蹤患者而言，若能在日常生活中長時間、低負擔地進行 ECG 監測，將有助於提早發現異常與降低急性事件風險。現有解決方案大致可分為三類。第一類為醫療院所內 ECG 檢查，量測品質高，但成本較高且不利於長時間日常監測；第二類為 Holter monitor，雖可長時間量測，但設備取得與使用門檻較高；第三類為市售智慧穿戴式裝置，雖具方便性，但多偏向短時間量測、心率監測或有限事件偵測，缺少完整的特徵分析、心臟疾病風險評估與後續就醫輔助功能。
-
-因此，本作品解決了以下問題：
-+ 如何在低成本穿戴式架構下取得可用的 ECG 訊號。
-+ 如何於邊緣運算裝置完成即時 ECG 訊號分析，不依賴大型雲端運算資源。
-+ 如何將原始高維 ECG 訊號轉換為具生理意義且可解釋的健康資訊。
-+ 如何讓量測結果不只停留於監測，而能進一步支援健康管理與就醫判斷。
-
-= 設計理念與創新價值
+== Key Innovations
 　　本作品之設計理念不僅在於提供 ECG 量測，而是希望將原始心電訊號即時轉換為可解讀之健康風險資訊。考量日常穿戴裝置需具備低延遲、低功耗、隱私性與可攜性，本作品採用邊緣端即時分析架構，避免大量生理資料長時間上傳雲端所帶來之傳輸負擔與個資風險。
 
 　　相較於現有產品，本作品的差異化重點如下：
@@ -36,15 +28,19 @@ Therefore, we propose an integrated framework that enables long-term ECG monitor
 + 採用輕量化自訓練 AI 模型，可於邊緣裝置執行，不需大型伺服器支援。
 
 　　本作品之新穎性不在於單一感測元件或單一演算法，而在於完整的跨域整合：從生理訊號擷取、訊號處理、邊緣 AI 推論、風險資訊視覺化，到就醫輔助資料匯出，形成具實務價值的整體解決方案。
+== Comparison with Existing Solutions
+=== Clinical ECG systems
+=== Smartwatch ECG
+== Potential Applications
 
-= 潛在市場、產業需求與應用價值
 　　本系統對應的潛在市場包括高齡健康管理、心血管疾病患者長期追蹤、遠距照護、居家術後觀察與一般民眾之個人健康監測。其應用價值主要體現在以下幾方面：
 + 預防醫學：協助使用者更早察覺異常節律或心血管風險。
 + 遠距照護：提供結構化 ECG 特徵與風險資訊，減少單純口述症狀之不確定性。
 + 就醫輔助：異常時可匯出 ECG 圖形，供醫師觀察判讀。
 + 邊緣部署：不需高階雲端算力即可完成分析，具低成本落地潛力。
 
-= 系統架構與整體實作規劃
+=  Methodology and Implementation
+== System Overview
 　　本作品硬體架構由 AD8232 ECG 感測模組、ESP32 與 Raspberry Pi 3B 組成。AD8232 負責單導程 ECG 訊號擷取，ESP32 負責資料取樣與傳輸，Raspberry Pi 3B 則負責訊號處理、特徵萃取、AF 偵測、風險推論與結果整合。此架構可在維持系統完整性的前提下兼顧成本、可攜性與邊緣部署需求。
 
 #figure(
@@ -65,26 +61,54 @@ Therefore, we propose an integrated framework that enables long-term ECG monitor
 ) <system_flow>
 
 　　在模型部署方面，本作品保留兩組 CatBoost 模型。8-feature 模型作為部署版本，適用於僅有基本資料與 ECG 特徵的情況；10-feature 模型則於使用者同時提供 Cholesterol 與 FastingBS 等額外健康資料時啟用，以獲得較高辨識效能。兩組模型大小約 650KB 等級，可於邊緣裝置進行推論。
+== Cardiovascular Risk Prediction
 
-= Feature Extraction
+=== Dataset and Problem Setup
+#h(2em) We utilized cardiovascular disease datasets from the UCI repository, including the Cleveland, Hungary, Switzerland, and VA Long Beach databases, and further integrated them with the Stalog (Heart) dataset. After removing duplicate entries and records with missing values, the final dataset comprised 918 samples. It includes 14 input features and one target variable, as detailed in the following table.
 
-== Preprocessing and Filters
+#figure(
+  table(
+    columns: (auto, 2fr, 2fr),
+    align: (center, left, left),
+    stroke: 0.5pt,
+    fill: (_, y) => if y == 0 { luma(230) } else { none },
+
+    [Variable], [Description], [Values / Units],
+
+    [Age], [age of the patient], [years],
+    [Sex], [sex of the patient], [M: Male, F: Female],
+    [ChestPainType], [chest pain type], [TA: Typical Angina, ATA: Atypical Angina, NAP: Non-Anginal Pain, ASY: Asymptomatic],
+    [RestingBP], [resting blood pressure], [mm Hg],
+    [Cholesterol], [serum cholesterol], [mg/dl],
+    [FastingBS], [fasting blood sugar], [1: > 120 mg/dl, 0: otherwise],
+    [RestingECG], [resting electrocardiogram results], [Normal, ST: ST-T abnormality, LVH: left ventricular hypertrophy],
+    [MaxHR], [maximum heart rate achieved], [60–202],
+    [ExerciseAngina], [exercise-induced angina], [Y: Yes, N: No],
+    [Oldpeak], [ST depression induced by exercise], [numeric],
+    [ST_Slope], [slope of the peak exercise ST segment], [Up, Flat, Down],
+    [HeartDisease], [output class], [1: heart disease, 0: normal],
+  ),
+  caption: [Summary of Input Features for Heart Disease Dataset],
+)<tab:features>
+
+
+=== Preprocessing and Filters
 
 Before extracting features, raw ECG signals must undergo noise filtering to ensure the accuracy of subsequent feature calculations.
 Our project initially utilized a 5-12 Hz filter to process the QRS segment. However, this frequency band over-suppressed the T-wave, causing the false removal of genuine ST depression or ST elevation features.
 To address this, we designed an independent 0.5-35 Hz filtering interval specifically for the ST Slope calculation, preserving complete and genuine ST segment features.
 
-== Feature Extraction Methods
+=== Feature Extraction Methods
 
-Our processing pipeline primarily extracts four key features: Maximum Heart Rate, Oldpeak, ST Slope, and Resting Electrocardiogram (RestingECG). The R-peak measured by `Pan-Tompkins++` serves as the reference point for calculating all subsequent features (like heart rate and segment windows). The extraction mechanisms, challenges, and optimization processes are detailed below.
+Our processing pipeline primarily extracts four key features: Maximum Heart Rate, Oldpeak, ST Slope, and Resting Electrocardiogram (RestingECG). The R-peak measured by `Pan-Tompkins++` @imtiaz2024pan serves as the reference point for calculating all subsequent features (like heart rate and segment windows). The extraction mechanisms, challenges, and optimization processes are detailed below.
 
-=== Maximum Heart Rate
+- *Maximum Heart Rate*
 
 #h(2em) *Definition*: The maximum heart rate achieved during the measurement period, typically yielding a numeric value between 60 and 202.
 
 *Extraction Method*: By utilizing the `Pan-Tompkins++` algorithm, we were able to detect R-peaks, which are subsequently converted into the heart rate.
 
-=== Oldpeak
+==== Oldpeak
 
 #h(2em) *Definition*: Oldpeak represents the ST depression caused by activity in comparison to rest. A value > 0 may indicate angina, while a value < 0 is potentially related to myocardial infarction.
 Oldpeak quantifies the absolute displacement of the ST segment relative to the electrically neutral PR baseline. In a healthy heart, the ST segment should be perfectly flush with the PR segment. When the heart muscle is stressed or deprived of oxygen (especially during the exercise phase of stress testing), the ST segment will deviate.
@@ -94,7 +118,7 @@ $ "Oldpeak" = V_("ST level") - V_("PR baseline") $
 Here, _PR baseline_ is the average potential between 200 ms and 120 ms prior to the R-peak, and _ST level_ is the average potential between 100 ms and 160 ms after the R-peak. 
 This timing window is crucial for accurately measuring the ST segment's displacement, and is suggested by multiple medical literature sources. @hu2015morphological @zong2014real @campero2022interpretable
 
-=== ST Slope
+==== ST Slope
 
 #h(2em) *Definition*: The slope of the peak exercise ST segment, classified into three categories: Up, Flat, or Down. While the Oldpeak measures the absolute drop or rise of the ST segment, the ST_Slope measures its morphological trajectory. How the ST segment behaves dynamically over time is a critical predictor of coronary artery disease.
 
@@ -107,7 +131,7 @@ Here, t represents time, V(t) is the voltage, b is the y-intercept, and m is the
 - _Downsloping_: $m < −0.5 V/s$. (A highly specific indicator of severe ischemic heart disease).
 - _Flat_: $abs(m) <=0.5 V/s$. (Also a strong indicator of ischemia, as a healthy ST segment should naturally slope upward into the T-wave).
 
-=== Resting Electrocardiogram (RestingECG)
+==== Resting Electrocardiogram (RestingECG)
 
 #h(2em) *Definition*: RestingECG is categorized into Normal, ST (having ST-T wave abnormality, such as T-wave inversion or ST elevation/depression > 0.05 mV), and LVH (showing probable or definite left ventricular hypertrophy by Estes' criteria).
 
@@ -125,7 +149,7 @@ Here, t represents time, V(t) is the voltage, b is the y-intercept, and m is the
 
 #h(2em) *LVH Difficulties*: And for LVH, since it requires precordial leads—specifically V1, V5, and V6, we implemented a practical software-based workaround. During the initial profile registration on our web interface, the system proactively prompts users to input their known medical history, including any prior LVH diagnoses. This approach ensures that the machine learning model still receives the complete data array required for a comprehensive risk assessment.
 
-=== Validation: 
+==== Validation: 
 We validated the accuracy of the STE/STD feature by comparing it with the European ST-T Database. The accuracy of recognizing ST Elevation/Depression was found to be 99.16% and recall of ST Elevation/Depression was 91.6%.
 
 #figure(
@@ -139,13 +163,12 @@ We validated the accuracy of the STE/STD feature by comparing it with the Europe
   caption: [Examples of ECG signal with features annotated.],
 )
 
-= Model Training Methodology and Techniques
+=== Model Training Methodology and Techniques
 
-#par(first-line-indent: 0em)[*1. Preprocessing*]
+==== Preprocessing
 First, public heart disease datasets were reconstructed into a comprehensive labeled dataset (918 records) with standardized feature naming and data types. Categorical variables were transformed into numerical representations via label encoding, while missing numerical values were handled using mean imputation to prevent training bias resulting from data omissions. 
 To address the issue of class imbalance, oversampling was employed during the training phase. This approach ensures a more balanced distribution of positive and negative classes, thereby enhancing the model's ability to identify minority classes.
-
-#par(first-line-indent: 0em)[*2. Training*]
+==== Training
 Regarding data partitioning, this study adopted an 80/20 holdout split (80% training set; 20% test set) consistent with existing literature, performing cross-validation and hyperparameter optimization within the training set. A progressive evolution strategy was applied to model development; initially, multiple baseline models were evaluated, including Logistic Regression, Gradient Boosting, CatBoost, and an average probability Ensemble model. Through comprehensive comparison, CatBoost exhibited the highest potential. 
 Consequently, the final deployed model in this study evolved directly from the CatBoost baseline. By performing further fine-tuning, we effectively improved the consistency between offline evaluation and deployment behavior. The final deployed CatBoost model converged with the following hyperparameters: (iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42).
 
@@ -154,10 +177,10 @@ Consequently, the final deployed model in this study evolved directly from the C
   caption: [Flowchart of Model Development and Training],
 ) <model_training>
 
-#par(first-line-indent: 0em)[*3. Classification*]
+==== Classification
 To balance prediction accuracy and system robustness, a Dual-model Routing mechanism was designed for the inference stage. When a user provides a complete set of clinical features, the system prioritizes the 10-Feature Model to deliver the best predictive performance. Conversely, if specific fields are missing, the system automatically switches to the 8-Feature Model, which utilizes data directly captured by our device's sensors to ensure stable and continuous output even under conditions of incomplete information.
 
-#par(first-line-indent: 0em)[*4. Performance Evaluation*]
+==== Performance Evaluation
 Accuracy, Precision, Recall, F1-score, and ROC-AUC were utilized as metrics for performance evaluation. Results on the holdout test set clearly illustrate the model's evolution trajectory: starting from the initial CatBoost baseline model (Accuracy 85.87%, Recall 85.29%), moving through fine-tuning, and culminating in threshold tuning. The final deployed 10-Feature model significantly pushed Accuracy and Recall to 96.57% and 97.06%, respectively.
 
 #text(size: 10pt)[Table 1. Results of hyper-parameter optimization for machine learning models]
@@ -185,7 +208,7 @@ Accuracy, Precision, Recall, F1-score, and ROC-AUC were utilized as metrics for 
 ) <roc_compare>
 
 
-= AF Detection Methodology and Validation
+== AF Detection Methodology and Validation
 
 #h(2em)During the early development of the Atrial Fibrillation (AF) detection module, the Coefficient of Variation (CV) test method was initially employed @tateno2001automatic. While this method is fast to implement and computationally efficient, its decision criteria are fundamentally based on a single statistic. This makes it prone to misidentifying ectopic rhythms, such as Premature Ventricular Contractions (PVCs), as AF, leading to a high false alarm rate in practical applications.
 
@@ -209,16 +232,16 @@ After a comprehensive evaluation of classification performance, false alarm cont
 
 #h(2em)The specific technical details and parameter settings of the RdR+NEC algorithm are as follows:
 
-#par(first-line-indent: 0em)[*1. RdR Map Construction*]
+=== RdR Map Construction
 Unlike the traditional Lorenz plot which utilizes a single dimension, this method maps successive RR intervals ($"RR"_i$) and their differences ($"dRR"_i = "RR"_i - "RR"_(i-1)$) simultaneously onto a two-dimensional coordinate system. This design captures both heart rate and heart rate variability (HRV) information. During AF episodes, irregular rhythms cause data points to scatter randomly across a wide area of the map; conversely, normal or regular rhythms typically present as dense, localized clusters.
 
-#par(first-line-indent: 0em)[*2. Gridding and Non-empty Cells (NEC)*]
+=== Gridding and Non-empty Cells (NEC)
 The system divides the RdR map into a two-dimensional grid. For each input segment containing 128 cardiac cycles (128-beat window), the number of Non-empty Cells (NEC) is calculated. This count quantifies the degree of dispersion to classify the rhythm as AF or non-AF.
 
-#par(first-line-indent: 0em)[*3. Threshold Determination*]
+=== Threshold Determination
 Based on the optimization analysis in @lian2011af, an NEC threshold of 65 was determined to provide optimal performance for a 128-beat window configuration.
 
-#par(first-line-indent: 0em)[*4. Edge Deployment Advantages*]
+=== Edge Deployment Advantages
 Compared to methods requiring extensive feature extraction or complex floating-point operations, RdR+NEC relies solely on a single integer count of NECs for classification. Its low computational overhead enables high-precision monitoring while satisfying the real-time and long-term monitoring requirements of battery-powered wearable devices.
 
 #figure(
