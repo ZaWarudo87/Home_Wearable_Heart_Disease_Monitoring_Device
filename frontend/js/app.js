@@ -79,10 +79,12 @@ function mapToEditPanelValues(config) {
 
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('registration-form').addEventListener('submit', handleRegistrationSubmit);
+    initializeLoginForm();
+
     const token = sessionStorage.getItem('apiToken');
     if (token) {
         apiToken = token;
-        fetchWithAuth('/api/auth/me')
+        fetchWithAuth('/api/v1/auth/me')
             .then(data => {
                 if (data.is_new_user) {
                     showRegistrationForm();
@@ -93,10 +95,10 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 console.error("Session restore failed", error);
                 sessionStorage.removeItem('apiToken');
-                initializeGSI();
+                handleSignOut();
             });
     } else {
-        initializeGSI();
+        handleSignOut();
     }
 
     // --- DEMO: skip Google login ---

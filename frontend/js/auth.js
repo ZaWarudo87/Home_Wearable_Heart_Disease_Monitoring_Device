@@ -1,11 +1,25 @@
-// --- Google Authentication Handlers ---
+// --- Name + Birthday Login Handlers ---
 
-async function handleCredentialResponse(credentialResponse) {
+async function handleLoginSubmit(event) {
+    event.preventDefault();
+
+    const name = (document.getElementById('name').value || '').trim();
+    const birthday = (document.getElementById('birthday').value || '').trim();
+
+    if (!name) {
+        alert('請輸入姓名。');
+        return;
+    }
+    if (!birthday) {
+        alert('請輸入生日。');
+        return;
+    }
+
     try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/google`, {
+        const response = await fetch(`${API_BASE_URL}/api/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ google_token: credentialResponse.credential })
+            body: JSON.stringify({ name, birthday })
         });
 
         if (!response.ok) {
@@ -13,17 +27,18 @@ async function handleCredentialResponse(credentialResponse) {
         }
 
         const data = await response.json();
-        apiToken = data.api_token;
+        apiToken = data.token || (data.user && data.user.token);
         sessionStorage.setItem('apiToken', apiToken);
-        if (data.user.name)
+
+        if (data.user && data.user.name) {
             defaultConfig.user_name = data.user.name;
+        }
 
         if (data.is_new_user) {
             showRegistrationForm();
         } else {
             await initializeApp(data.user);
         }
-
     } catch (error) {
         console.error('Login failed:', error);
         alert('登入失敗，請稍後再試。');
@@ -48,13 +63,12 @@ function handleSignOut() {
     });
     charts = {};
 
-    if (window.google && window.google.accounts && window.google.accounts.id) {
-        google.accounts.id.disableAutoSelect();
-    }
-
     document.getElementById('login-view').classList.remove('hidden');
     document.getElementById('registration-view').classList.add('hidden');
     document.getElementById('dashboard-view').classList.add('hidden');
+
+    const globalToggle = document.getElementById('theme-toggle-global');
+    if (globalToggle) globalToggle.style.display = 'block';
 }
 
 // --- Registration Form ---
@@ -69,7 +83,6 @@ async function handleRegistrationSubmit(event) {
     event.preventDefault();
     const formData = {
         sex: document.getElementById('sex').value,
-        age: parseInt(document.getElementById('age').value),
         chest_pain_type: document.getElementById('chest-pain-type').value,
         exercise_angina: document.getElementById('exercise-angina').value === 'Y',
         resting_ecg: document.getElementById('lvh').value === 'Y'
@@ -82,7 +95,7 @@ async function handleRegistrationSubmit(event) {
         });
 
         console.log('Registration successful:', response);
-        const userData = await fetchWithAuth('/api/auth/me');
+        const userData = await fetchWithAuth('/api/v1/auth/me');
         await initializeApp(userData.user);
 
     } catch (error) {
@@ -91,20 +104,9 @@ async function handleRegistrationSubmit(event) {
     }
 }
 
-function initializeGSI() {
-    if (!window.google || !window.google.accounts) {
-        console.log("Waiting for Google GSI script to load...");
-        setTimeout(initializeGSI, 200);
-        return;
+function initializeLoginForm() {
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLoginSubmit);
     }
-
-    google.accounts.id.initialize({
-        client_id: "693422158799-3b30id9m2eo0l4463m4njruokbalk5bd.apps.googleusercontent.com",
-        callback: handleCredentialResponse
-    });
-
-    google.accounts.id.renderButton(
-        document.getElementById("g_id_signin"),
-        { theme: "outline", size: "large", text: "signin_with", shape: "rectangular" }
-    );
 }

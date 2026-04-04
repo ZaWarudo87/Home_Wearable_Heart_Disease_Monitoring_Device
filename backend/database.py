@@ -5,7 +5,7 @@ import numpy as np
 import lttbc
 
 from bisect import bisect_left
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
@@ -21,12 +21,17 @@ class User(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
-    google_id = db.Column(db.String(255), unique=True, nullable=False)
-    email = db.Column(db.String(255), unique=True, nullable=False)
     name = db.Column(db.String(255), nullable=False)
-    api_token = db.Column(db.String(255), unique=True, nullable=False)
+    birthday = db.Column(db.Date, nullable=False)
     profile_completed = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
+
+    @property
+    def age(self):
+        if self.birthday:
+            today = date.today()
+            return today.year - self.birthday.year - ((today.month, today.day) < (self.birthday.month, self.birthday.day))
+        return None
 
     # Relationships
     profile = db.relationship('UserProfile', backref='user', uselist=False, cascade='all, delete-orphan')
@@ -41,7 +46,6 @@ class UserProfile(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     sex = db.Column(db.String(10), nullable=False)  # 'M' or 'F'
-    age = db.Column(db.Integer, nullable=False)
     chest_pain_type = db.Column(db.String(50), nullable=False)
     exercise_angina = db.Column(db.Boolean, nullable=False)
     resting_ecg = db.Column(db.Boolean, nullable=False)  # True if LVH
@@ -96,24 +100,23 @@ def init_db(app):
 
 # ==================== User Functions ====================
 
-def create_user(google_id: str, email: str, name: str, api_token: str) -> User:
+def create_user(name: str, birthday_str: str) -> User:
     user = User(
-        google_id=google_id,
-        email=email,
         name=name,
-        api_token=api_token,
+        birthday=datetime.strptime(birthday_str, '%Y-%m-%d').date(),
         profile_completed=False
     )
     db.session.add(user)
     db.session.commit()
     return user
 
+def get_user_by_name_birth(name: str, birthday_str: str) -> User:
+    birthday = datetime.strptime(birthday_str, '%Y-%m-%d').date()
+    return User.query.filter_by(name=name, birthday=birthday).first()
 
-def get_user_by_google_id(google_id: str) -> User:
-    return User.query.filter_by(google_id=google_id).first()
 
-def get_user_by_token(api_token: str) -> User:
-    return User.query.filter_by(api_token=api_token).first()
+def get_user_by_id(user_id: int) -> User:
+    return User.query.get(user_id)
 
 
 # ==================== Profile Functions ====================
@@ -126,7 +129,6 @@ def update_userdata(user_id: int, data: dict) -> dict:
     if user.profile:
         # Update existing profile
         user.profile.sex = data["sex"]
-        user.profile.age = data["age"]
         user.profile.chest_pain_type = data["chest_pain_type"]
         user.profile.exercise_angina = data["exercise_angina"]
         user.profile.resting_ecg = data["resting_ecg"]
@@ -135,7 +137,6 @@ def update_userdata(user_id: int, data: dict) -> dict:
         profile = UserProfile(
             user_id=user_id,
             sex=data["sex"],
-            age=data["age"],
             chest_pain_type=data["chest_pain_type"],
             exercise_angina=data["exercise_angina"],
             resting_ecg=data["resting_ecg"]
@@ -345,11 +346,12 @@ def get_window_features(user_id: int = now_user_id) -> pd.DataFrame:
 
 def get_model_user_info(user_id: int) -> dict:
     profile = UserProfile.query.filter_by(user_id=user_id).first()
+    get_user = User.query.filter_by(id=user_id).first()
     latest_health = HealthRecord.query.filter_by(user_id=user_id)\
         .order_by(HealthRecord.timestamp.desc()).first()
 
     user_info = {
-        "Age": profile.age if profile else 0,
+        "Age": get_user.age if get_user else 0,
         "Sex": profile.sex if profile else "M",
         "ChestPainType": profile.chest_pain_type if profile else "ASY",
         "ExerciseAngina": "Y" if (profile.exercise_angina if profile else False) else "N",
@@ -431,10 +433,10 @@ def show_all_tables():
     print(f"\nUSERS ({len(users)} records)")
     print("-" * 80)
     if users:
-        print(f"{'ID':<5} {'Google ID':<15} {'Name':<20} {'Email':<30} {'Completed':<10}")
+        print(f"{'ID':<5} {'Name':<20} {'Birthday':<12} {'Completed':<10}")
         print("-" * 80)
         for user in users:
-            print(f"{user.id:<5} {user.google_id[:14]:<15} {user.name[:19]:<20} {user.email[:29]:<30} {user.profile_completed:<10}")
+            print(f"{user.id:<5} {user.name[:19]:<20} {user.birthday.isoformat():<12} {user.profile_completed:<10}")
     else:
         print("(No users found)")
 
@@ -443,10 +445,10 @@ def show_all_tables():
     print(f"\nUSER PROFILES ({len(profiles)} records)")
     print("-" * 60)
     if profiles:
-        print(f"{'ID':<5} {'User ID':<8} {'Sex':<5} {'Age':<5} {'Chest Pain':<15} {'Ex.Angina':<10} {'Resting ECG':<10}")
+        print(f"{'ID':<5} {'User ID':<8} {'Sex':<5} {'Chest Pain':<15} {'Ex.Angina':<10} {'Resting ECG':<10}")
         print("-" * 60)
         for profile in profiles:
-            print(f"{profile.id:<5} {profile.user_id:<8} {profile.sex:<5} {profile.age:<5} {profile.chest_pain_type[:14]:<15} {profile.exercise_angina:<10} {profile.resting_ecg:<10}")
+            print(f"{profile.id:<5} {profile.user_id:<8} {profile.sex:<5} {profile.chest_pain_type[:14]:<15} {profile.exercise_angina:<10} {profile.resting_ecg:<10}")
     else:
         print("(No profiles found)")
 

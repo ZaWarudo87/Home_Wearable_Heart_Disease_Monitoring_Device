@@ -16,4 +16,4 @@ let charts = {};
 let apiToken = null;
 
 // --- API Base URL ---
-const API_BASE_URL = "https://among-appreciated-prague-compiled.trycloudflare.com/";
+const API_BASE_URL = "http://localhost:39244/";
