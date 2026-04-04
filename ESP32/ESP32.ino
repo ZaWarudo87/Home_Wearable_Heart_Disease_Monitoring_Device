@@ -1,3 +1,4 @@
+#include <ESPmDNS.h>
 #include <WiFi.h>
 
 const char* ssid     = "yourid";
@@ -40,6 +41,14 @@ void setup() {
   Serial.println("\nWiFi Connected!");
   Serial.print("ESP32 IP address: ");
   Serial.println(WiFi.localIP());
+
+  if (!MDNS.begin("heart-monitor-esp32")) {
+    Serial.println("Error setting up MDNS responder!");
+    while(1) { delay(1000); }
+  }
+  Serial.println("mDNS responder started");
+
+  MDNS.addService("http", "tcp", 80);
   server.begin();
 }
 
