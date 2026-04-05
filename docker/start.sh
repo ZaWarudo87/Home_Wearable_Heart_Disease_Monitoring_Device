@@ -13,7 +13,7 @@ echo -e "${BLUE}================================================================
 echo ""
 
 echo -e "${YELLOW}[1/3] Starting Flask backend service...${NC}"
-python backend_main.py &
+python backend/backend_main.py &
 BACKEND_PID=$!
 sleep 3
 
@@ -66,7 +66,7 @@ else
 fi
 
 echo -e "${GREEN}🔧 Local URL:${NC}"
-echo -e "${YELLOW}   http://localhost:5001${NC}"
+echo -e "${YELLOW}   http://localhost:39244${NC}"
 echo ""
 echo -e "${BLUE}========================================${NC}"
 echo -e "${GREEN}Note:${NC}"

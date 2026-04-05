@@ -1,5 +1,8 @@
 services:
   backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: heart-monitor-backend
     environment:
       - PYTHONUNBUFFERED=1
@@ -11,7 +14,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs
-      - ./data:/app/data
+      - ./data:/app/backend/data
 
   ecg-receiver:
     build: .

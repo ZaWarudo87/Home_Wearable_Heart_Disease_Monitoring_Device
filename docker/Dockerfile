@@ -19,8 +19,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt --default-timeout=1000
 
-COPY backend/*.py ./
-COPY backend/pan_tompkins_plus_plus/ ./pan_tompkins_plus_plus/
+COPY backend/ ./backend/
+COPY frontend/ ./frontend/
 
 COPY docker/start.sh .
 RUN sed -i 's/\r$//' start.sh && chmod +x start.sh
