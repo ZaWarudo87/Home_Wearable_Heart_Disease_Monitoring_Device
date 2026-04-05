@@ -32,6 +32,7 @@ cloudflared.log
 backend/pan_tompkins_plus_plus/physionet.org/
 backend/pan_tompkins_plus_plus/ECG-Live-Filter/
 backend/pan_tompkins_plus_plus/results_ptbxl
+test/plots/
 
 backend/pan_tompkins_plus_plus/results_csv/prediction_ensemble.json
 backend/pan_tompkins_plus_plus/results_csv/model_input_features.csv

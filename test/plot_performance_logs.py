@@ -83,46 +83,23 @@ def parse_docker_stats_log(path: Path) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("time").reset_index(drop=True)
 
 
-def save_health_chart(df_health: pd.DataFrame, out_path: Path) -> None:
-    fig, ax_temp = plt.subplots(figsize=(12, 5))
-    ax_flag = ax_temp.twinx()
+def save_temperature_chart(df_health: pd.DataFrame, out_path: Path) -> None:
+    fig, ax = plt.subplots(figsize=(12, 5))
 
-    ax_temp.plot(df_health["time"], df_health["temp_c"], color="#d62728", linewidth=2.0, label="Temperature (C)")
-    ax_flag.step(
-        df_health["time"],
-        df_health["is_throttled_now"],
-        where="post",
-        color="#1f77b4",
-        linewidth=1.6,
-        alpha=0.9,
-        label="Throttled now (0/1)",
-    )
-    ax_flag.step(
-        df_health["time"],
-        df_health["is_undervoltage_now"],
-        where="post",
-        color="#2ca02c",
-        linewidth=1.4,
-        alpha=0.8,
-        label="Under-voltage now (0/1)",
-    )
+    ax.plot(df_health["time"], df_health["temp_c"], color="#d62728", linewidth=2.2, label="Temperature (C)")
 
-    ax_temp.set_title("Device Temperature and Throttle Flags")
-    ax_temp.set_xlabel("Time")
-    ax_temp.set_ylabel("Temperature (C)")
-    ax_flag.set_ylabel("Throttle flags")
-    ax_flag.set_ylim(-0.1, 1.2)
+    ax.set_title("Device Temperature Over Time")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Temperature (C)")
 
     locator = mdates.AutoDateLocator()
     formatter = mdates.DateFormatter("%H:%M:%S")
-    ax_temp.xaxis.set_major_locator(locator)
-    ax_temp.xaxis.set_major_formatter(formatter)
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(formatter)
     fig.autofmt_xdate()
 
-    lines_1, labels_1 = ax_temp.get_legend_handles_labels()
-    lines_2, labels_2 = ax_flag.get_legend_handles_labels()
-    ax_temp.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper left")
-    ax_temp.grid(alpha=0.25)
+    ax.legend(loc="upper left")
+    ax.grid(alpha=0.25)
 
     fig.tight_layout()
     fig.savefig(out_path, dpi=180)
@@ -149,45 +126,6 @@ def save_docker_cpu_chart(df_docker: pd.DataFrame, out_path: Path) -> None:
     plt.close(fig)
 
 
-def save_combined_chart(df_health: pd.DataFrame, df_docker: pd.DataFrame, out_path: Path) -> None:
-    merged = pd.merge_asof(
-        df_docker.sort_values("time"),
-        df_health[["time", "temp_c"]].sort_values("time"),
-        on="time",
-        direction="nearest",
-        tolerance=pd.Timedelta("15s"),
-    ).dropna(subset=["temp_c"])
-
-    if merged.empty:
-        raise ValueError("Could not align health and docker logs for combined chart")
-
-    fig, ax_cpu = plt.subplots(figsize=(12, 5))
-    ax_temp = ax_cpu.twinx()
-
-    ax_cpu.plot(merged["time"], merged["cpu_pct"], color="#1f77b4", linewidth=1.8, label="CPU %")
-    ax_temp.plot(merged["time"], merged["temp_c"], color="#d62728", linewidth=1.8, label="Temperature (C)")
-
-    ax_cpu.set_title("CPU Usage vs Device Temperature")
-    ax_cpu.set_xlabel("Time")
-    ax_cpu.set_ylabel("CPU %")
-    ax_temp.set_ylabel("Temperature (C)")
-    ax_cpu.grid(alpha=0.25)
-
-    locator = mdates.AutoDateLocator()
-    formatter = mdates.DateFormatter("%H:%M:%S")
-    ax_cpu.xaxis.set_major_locator(locator)
-    ax_cpu.xaxis.set_major_formatter(formatter)
-    fig.autofmt_xdate()
-
-    lines_1, labels_1 = ax_cpu.get_legend_handles_labels()
-    lines_2, labels_2 = ax_temp.get_legend_handles_labels()
-    ax_cpu.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper left")
-
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=180)
-    plt.close(fig)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plot health and docker performance logs.")
     parser.add_argument("--health", type=Path, default=Path("test/health.log"), help="Path to health log")
@@ -201,14 +139,12 @@ def main() -> None:
     health_df = parse_health_log(args.health)
     docker_df = parse_docker_stats_log(args.docker)
 
-    save_health_chart(health_df, out_dir / "health_temp_throttle.png")
+    save_temperature_chart(health_df, out_dir / "device_temperature.png")
     save_docker_cpu_chart(docker_df, out_dir / "docker_cpu_usage.png")
-    save_combined_chart(health_df, docker_df, out_dir / "cpu_vs_temp.png")
 
     print("Saved charts:")
-    print(f"- {out_dir / 'health_temp_throttle.png'}")
+    print(f"- {out_dir / 'device_temperature.png'}")
     print(f"- {out_dir / 'docker_cpu_usage.png'}")
-    print(f"- {out_dir / 'cpu_vs_temp.png'}")
 
 
 if __name__ == "__main__":

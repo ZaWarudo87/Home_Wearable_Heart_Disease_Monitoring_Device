@@ -72,11 +72,10 @@ Moreover, owing to its low-cost implementation and edge-based architecture, the 
 = Methodology and Implementation
 == System Overview
 //　　本作品硬體架構由 AD8232 ECG 感測模組、ESP32 與 Raspberry Pi 3B 組成。AD8232 負責單導程 ECG 訊號擷取，ESP32 負責資料取樣與傳輸，Raspberry Pi 3B 則負責訊號處理、特徵萃取、AF 偵測、風險推論與結果整合。此架構可在維持系統完整性的前提下兼顧成本、可攜性與邊緣部署需求。
-#h(2em) The system consists of the following components: AD8232 ECG module, ESP32, and Raspberry Pi 3B. AD8232 is responsible for single-lead ECG signal acquisition, ESP32 for data sampling and transmission, and Raspberry Pi 3B for signal processing, feature extraction, AF detection, risk inference, and result integration. *This architecture can meet the cost, portability, and edge deployment requirements.*
+#h(2em) The system consists of the following components: AD8232 ECG module, ESP32, and Raspberry Pi 3B. The AD8232 is responsible for single-lead ECG signal acquisition, while the ESP32 connects for data sampling and transmission, and the Raspberry Pi 3B receives those data for signal processing, feature extraction, AF detection, risk inference, and result integration. *This architecture can meet the cost, portability, and edge deployment requirements*, making it suitable for use in remote health monitoring applications where efficient and real-time ECG analysis is essential. @module_overview shows how these components interact within the overall system architecture and the services inside each module.
 
 #figure(
-  scale(55%, reflow: true)[#figures.module_overview],
-  // image("pics/module_overview/module_overview.jpg"),
+  scale(70%, reflow: true)[#figures.module_overview],
   caption: [Module overview]
 ) <module_overview>
 
@@ -183,7 +182,7 @@ The two models are approximately 650KB in size, and can be inferred on edge devi
 Additionally, since `Cholesterol` and `FastingBS` cannot be directly measured by our device and require user input, we designed a *dual-model system*. The 10-feature model is applied when all features are available, whereas an *8-feature model is used when `Cholesterol` and `FastingBS` are missing*. This design maintains strong predictive performance while ensuring reliable operation under incomplete data conditions.
 
 #figure(
-  image("pics/feature_select.png.webp"),
+  image("pics/feature_select.png.webp", width: 80%),
   caption: [Ablation study on input features]
 ) <feature_select>
 
@@ -260,6 +259,8 @@ $ V(t)=m t+b $
 
 === Model Training Methodology and Techniques
 
+#h(2em) The final deployed 10-feature CatBoost model achieved *96.57% accuracy and 97.06% recall* on the holdout test set after fine-tuning and threshold tuning, demonstrating that ECG-derived features can be translated into reliable cardiovascular risk predictions.
+
 ==== Feature Preprocessing
 #h(2em)First, public heart disease datasets were reconstructed into a comprehensive labeled dataset (918 records) with standardized feature naming and data types. Categorical variables were transformed into numerical representations via label encoding, while missing numerical values were handled using mean imputation to prevent training bias resulting from data omissions. 
 To address the issue of class imbalance, oversampling was employed during the training phase. This approach ensures a more balanced distribution of positive and negative classes, thereby enhancing the model's ability to identify minority classes.
@@ -275,62 +276,18 @@ Consequently, the final deployed model in this study evolved directly from the C
 ==== Classification
 #h(2em)To balance prediction accuracy and system robustness, a *Dual-model Routing mechanism* was designed for the inference stage. When a user provides a complete set of clinical features, the system prioritizes the 10-Feature Model to deliver the best predictive performance. Conversely, if specific fields are missing, the system automatically switches to the 8-Feature Model, which utilizes data directly captured by our device's sensors to ensure stable and continuous output even under conditions of incomplete information.
 
-==== Performance Evaluation
-#h(2em)Accuracy, Precision, Recall, F1-score, and ROC-AUC were utilized as metrics for performance evaluation. Results on the holdout test set clearly illustrate the model's evolution trajectory: starting from the initial CatBoost baseline model (Accuracy 85.87%, Recall 85.29%), moving through fine-tuning, and culminating in threshold tuning. *The final deployed 10-Feature model significantly pushed Accuracy and Recall to 96.57% and 97.06%, respectively.*
-
-  #set text(size: 8pt)
-  #figure(
-    table(
-      columns: (2.7fr, 4.3fr, 1fr, 1fr, 1fr, 1fr, 1fr),
-      align: (left, left, center, center, center, center, center),
-      stroke: 0.5pt,
-      fill: (_, y) => if y == 0 { luma(230) } else { none },
-      [*Model*], [*Parameter*], [*Accuracy*], [*AUC*], [*Precision*], [*Recall*], [*F1*],
-
-      [CatBoost], [{verbose=False, random_state=369}], [85.87], [90.35], [88.78], [85.29], [87.00],
-      [LogisticRegression], [{max_iter=5000, random_state=369}], [87.50], [92.53], [89.11], [88.24], [88.67],
-      [GradientBoosting], [{random_state=369}], [85.33], [91.69], [90.32], [82.35], [86.15],
-      [Ensemble], [ ], [86.96], [92.06], [90.62], [85.29], [87.88],
-      [CatBoost after fine-tuning (before threshold tuning)], [(iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42)], [91.67], [88.08], [95.70], [87.25], [91.28],
-      [CatBoost after fine-tuning (after threshold tuning)], [(iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42, threshold=0.20)], [96.57], [97.67], [96.12], [97.06], [96.59],
-    ),
-    caption: [Comparison of Model Performance Metrics on Test Set],
-  )<tab:cvd_model_results>
-
-#set text(size: 12pt)
-#figure(
-  image("pics/roc_comparison_single_chart.png", width: 75%),
-  caption: [ROC curve comparison on test set],
-) <roc_compare>
-
 
 == AF Detection Methodology and Validation
 
 #h(2em)During the early development of the AF detection module, the Coefficient of Variation (CV) test method was initially employed @tateno2001automatic. While this method is fast to implement and computationally efficient, its decision criteria are fundamentally based on a single statistic. This makes it prone to misidentifying ectopic rhythms, such as Premature Ventricular Contractions (PVCs), as AF, leading to a high false alarm rate in practical applications.
 
-To address this issue, a multi-feature integration approach proposed by Dash et al. @dash2009automatic was subsequently explored, which utilizes TPR, RMSSD, and Shannon Entropy (SE) to improve discriminatory power. As shown in Table 2, this integrated approach achieved excellent classification results on the AFDB dataset. However, this method involves complex feature extraction and precise parameter tuning, incurring high engineering overhead and significantly longer computation times.
+To address this issue, a multi-feature integration approach proposed by Dash et al @dash2009automatic. This academic article was subsequently explored, which utilizes TPR, RMSSD, and Shannon Entropy (SE) to improve discriminatory power. As shown in the comparative results, this integrated approach achieved excellent classification results on the AFDB dataset. However, this method involves complex feature extraction and precise parameter tuning, incurring high engineering overhead and significantly longer computation times.
 
-After a comprehensive evaluation of classification performance, false alarm control, algorithmic complexity, and maintenance costs, *the RdR+NEC method @lian2011af was ultimately selected for this work*. This method offers the dual advantages of simple decision rules and *extremely low computational complexity*. As verified by the computation time comparison in Table 2, *the current RdR+NEC version maintains high accuracy and balanced sensitivity and specificity while satisfying the requirements for real-time execution on edge devices.* It has thus been adopted as the deployment method.
+After a comprehensive evaluation of classification performance, false alarm control, algorithmic complexity, and maintenance costs, the RdR+NEC method @lian2011af was ultimately selected for this work. This method offers the dual advantages of simple decision rules and *extremely low computational complexity*.
 
-#set text(size:11pt)
-#figure(
-  table(
-    columns: (2.5fr, 1fr, 1fr, 1fr, 1.8fr),
-    align: (left, center, center, center, center),
-    stroke: 0.5pt,
-    fill: (_, y) => if y == 0 { luma(230) } else { none },
-    [*Method*], [*Sensitivity*], [*Specificity*], [*Accuracy*], [#par(justify: false)[*Computation time*]],
+In the deployed system, *the final RdR+NEC version achieves 95.73% accuracy, 95.72% sensitivity, 95.74% specificity, and 1.167 ms/window* while satisfying the requirements for real-time execution on edge devices.
 
-    [CV test], [90.91], [77.67], [78.62], [0.294 ms/window],
-    [RMSSD+TPR+SE], [98.99], [87.12], [87.97], [10.107 ms/window],
-    [RdR+NEC (selected method)], [95.72], [95.74], [95.73], [1.167 ms/window],
-  ),
-  caption: [Sensitivity, specificity and accuracy values for different methods from MIT-BIH dataset],
-  )<tab:cvd_model_results>
-
-#set text(size:12pt)
-
-#h(2em)The specific technical details and parameter settings of the RdR+NEC algorithm are as follows:
+The specific technical details and parameter settings of the RdR+NEC algorithm are as follows:
 
 === RdR Map Construction
 #h(2em) Unlike the traditional Lorenz plot which utilizes a single dimension, this method maps successive RR intervals ($"RR"_i$) and their differences ($"dRR"_i = "RR"_i - "RR"_(i-1)$) simultaneously onto a two-dimensional coordinate system. This design captures both heart rate and heart rate variability (HRV) information. During AF episodes, irregular rhythms cause data points to scatter randomly across a wide area of the map; conversely, normal or regular rhythms typically present as dense, localized clusters.
@@ -346,7 +303,7 @@ After a comprehensive evaluation of classification performance, false alarm cont
 
 #figure(
   image("pics/af_detect.png"),
-  caption: [Schematic Diagram of Atrial Fibrillation (AF) Detection],
+  caption: [An example of Atrial Fibrillation (AF) Detection],
 ) <af_detect>
 
 #h(2em) To confirm the algorithm's generalization capabilities, verification was conducted across multiple public datasets. As indicated in Table 3, the RdR+NEC method demonstrates highly stable and superior detection performance across diverse data distributions.
@@ -414,11 +371,11 @@ The system consists of the following key components:
 
     [*Component*], [*Function*], [*Cost (TWD)*],
 
-    [AD8232 ECG module], [ECG signal acquisition], [~200],
-    [ESP32], [Data acquisition and transmission], [~150],
-    [Raspberry Pi 3B], [Edge processing], [~1500],
-    [Power module & peripherals], [Battery and supporting components], [~100],
-    [*Total*], [], [*< 2000*],
+    [AD8232 ECG module], [ECG signal acquisition], [\~200],
+    [ESP32], [Data acquisition and transmission], [\~150],
+    [Raspberry Pi 3B], [Edge processing], [\~1,500],
+    [Power module & peripherals], [Battery and supporting components], [\~100],
+    [*Total*], [], [*< 2,000*],
   ),
   caption: [Hardware Cost Breakdown of the Proposed System],
 )<tab:cost>
@@ -452,8 +409,7 @@ These results indicate that the proposed system is both technically effective an
 + 本系統定位為健康管理與早期警示工具，而非醫療診斷設備。
 */
 
-//TODO
-= Key Contribution // Performance Hightlights?
+= Research Outcomes and Benefits
 == Enhancement of Early Detection Capability of Cardiovascular Abnormalities
 #h(2em)The proposed system significantly enhances the early detection capability of cardiovascular abnormalities by enabling continuous, long-term ECG monitoring.
 
@@ -461,11 +417,62 @@ Conventional wearable ECG systems are typically limited to short-duration or use
 
 In contrast, the proposed system supports continuous ECG acquisition and incorporates a rhythm analysis mechanism based on RR interval dynamics. By utilizing the RdR + NEC method, the system is able to effectively characterize irregular heartbeat patterns over extended time windows.
 
-This design improves the likelihood of detecting subtle or sporadic abnormalities that would otherwise be missed in short-term measurements. As a result, the system provides a more reliable foundation for early-stage cardiovascular risk identification and preventive healthcare.
+The ESP32 samples ECG continuously and transmits the data through a Wi-Fi link to the Raspberry Pi, where preprocessing and AF detection run in parallel with live visualization. The backend then streams ECG frames to the frontend through WebSocket, allowing users to observe real-time waveforms while the system analyzes rhythm irregularity.
+
+The selected RdR+NEC demonstrates that the edge-based pipeline can balance early warning performance with low computational overhead. This design improves the likelihood of detecting subtle or sporadic abnormalities that would otherwise be missed in short-term measurements, and it provides a reliable foundation for preventive cardiovascular monitoring.
+
+#set text(size:11pt)
+#figure(
+  table(
+    columns: (2.5fr, 1fr, 1fr, 1fr, 1.8fr),
+    align: (left, center, center, center, center),
+    stroke: 0.5pt,
+    fill: (_, y) => if y == 0 { luma(230) } else { none },
+    [*Method*], [*Sensitivity*], [*Specificity*], [*Accuracy*], [#par(justify: false)[*Computation time*]],
+
+    [CV test], [90.91], [77.67], [78.62], [0.294 ms/window],
+    [RMSSD+TPR+SE], [98.99], [87.12], [87.97], [10.107 ms/window],
+    [RdR+NEC (selected method)], [95.72], [95.74], [95.73], [1.167 ms/window],
+  ),
+  caption: [AF detection method comparison on the MIT-BIH dataset],
+) <tab:af_method_results>
 == From Raw ECG Signals to Interpretable Risk Representation
 #h(2em)We introduce a unified feature extraction framework and a feature-based predictive model that map raw ECG signals to clinically relevant indicators for cardiovascular disease assessment. This representation enables the model to operate in a semantically meaningful feature space, rather than directly on high-dimensional raw signals. Furthermore, the feature-based approach reduces computational complexity, resulting in low overhead and enabling real-time execution on edge devices.
 
-== // 輕量化邊緣後端服務架設
+The final deployed 10-feature CatBoost model achieved 96.57% accuracy and 97.06% recall on the holdout test set after fine-tuning and threshold tuning, and the precision, F1-score, and ROC-AUC are also showing that the extracted ECG features are sufficient for an interpretable and accurate risk model. Results on the holdout test set clearly illustrate the model's evolution trajectory: starting from the initial CatBoost baseline model (accuracy 85.87%, recall 85.29%), moving through fine-tuning, and culminating in threshold tuning.
+
+#set text(size:8pt)
+#figure(
+  table(
+    columns: (2.7fr, 4.3fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+    align: (left, left, center, center, center, center, center),
+    stroke: 0.5pt,
+    fill: (_, y) => if y == 0 { luma(230) } else { none },
+    [*Model*], [*Parameter*], [*Accuracy*], [*AUC*], [*Precision*], [*Recall*], [*F1*],
+
+    [CatBoost], [{verbose=False, random_state=369}], [85.87], [90.35], [88.78], [85.29], [87.00],
+    [LogisticRegression], [{max_iter=5000, random_state=369}], [87.50], [92.53], [89.11], [88.24], [88.67],
+    [GradientBoosting], [{random_state=369}], [85.33], [91.69], [90.32], [82.35], [86.15],
+    [Ensemble], [ ], [86.96], [92.06], [90.62], [85.29], [87.88],
+    [CatBoost after fine-tuning (before threshold tuning)], [(iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42)], [91.67], [88.08], [95.70], [87.25], [91.28],
+    [CatBoost after fine-tuning (after threshold tuning)], [(iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42, threshold=0.20)], [96.57], [97.67], [96.12], [97.06], [96.59],
+  ),
+  caption: [Comparison of model performance metrics on the holdout test set],
+) <tab:cvd_training_results>
+
+#set text(size:12pt)
+#figure(
+  image("pics/roc_comparison_single_chart.png", width: 75%),
+  caption: [ROC curve comparison on test set],
+) <roc_compare>
+
+== Lightweight Edge Backend Deployment
+
+#h(2em)To evaluate deployment feasibility on resource-constrained hardware, we profiled the backend service on Raspberry Pi 3B under a representative user workflow. The device was first allowed to warm up at room temperature, and the Dockerized backend service was then launched at 19:30 after thermal stabilization. Five minutes later (19:35), interactive testing began with sequential operations including user login, health-data upload, chart inspection, live ECG viewing, and risk assessment.
+
+As shown in @device_temprature and @cpu_usage, the backend maintained a consistently low computational footprint during routine operation. CPU utilization remained below 10% for most of the session, with only short transient increases during ECG chart rendering and risk-inference execution. Thermal behavior was similarly stable: the Raspberry Pi temperature was maintained around 54℃ throughout testing, corresponding to an increase of only approximately 4℃ compared with the idle baseline.
+
+These results indicate that the proposed backend service is sufficiently lightweight for sustained edge deployment. The system supports real-time interaction and model inference while preserving stable thermal and computational conditions, demonstrating practical suitability for long-term home and community healthcare scenarios.
 
 #figure(
   image("pics/device_temperature.png"),
@@ -478,12 +485,12 @@ This design improves the likelihood of detecting subtle or sporadic abnormalitie
 ) <cpu_usage>
 
 = Conclusion and Future Work
-== Conclusion\
+== Conclusion
 #h(2em)Our project presents a *highly integrated, low-cost, and edge-based wearable ECG monitoring system* designed to bridge the gap between expensive clinical diagnostics and limited commercial smartwatches. By combining an AD8232 sensor, an ESP32 microcontroller, and a Raspberry Pi 3B, we established a robust hardware architecture *capable of long-term, continuous cardiovascular monitoring under both resting and exercise conditions*. 
 
 Algorithmically, the system successfully translates raw ECG signals into interpretable clinical indicators. The implementation of a *dual-model CatBoost routing mechanism ensures robust cardiovascular disease risk prediction (achieving up to 96.57% accuracy)* even with incomplete user data. Concurrently, the integration of the computationally efficient RdR+NEC algorithm *enables the real-time detection of both paroxysmal and persistent atrial fibrillation* with minimal computational overhead on edge devices. Complemented by a *TAIDE-based large language model*, the system empowers users with personalized and intuitive health insights. Overall, this framework offers an accessible, scalable, and privacy-preserving solution for proactive cardiovascular screening in home healthcare settings.
 
-== Future work\
+== Future work
 #h(2em)However, our proposed system still has its limitations: our system still only supports single-lead ECG and might not be representative enough for cardiovascular disease (We've planned to *expand to multi-lead ECG* in the future to increase the amount of information for risk assessment). Also, our system still relies on gel-electrode contact for ECG measurement.
 
 The system can be further extended to support multi-lead ECG acquisition, thereby enriching the information available for cardiovascular risk assessment. In addition, the current wired configuration and reliance on gel-based electrodes may limit user comfort and usability. Future work may therefore *investigate wireless electrode designs or dry electrode technologies* to enhance wearability and support long-term use. Furthermore, the system could be *integrated with cloud-based services to enable home-based diagnosis and remote monitoring*, allowing users to share ECG data and risk assessment results with healthcare professionals for more comprehensive and continuous care.
