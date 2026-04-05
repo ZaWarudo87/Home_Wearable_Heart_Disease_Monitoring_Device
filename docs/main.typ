@@ -29,6 +29,37 @@ Therefore, we propose an integrated framework that enables long-term ECG monitor
 
 　　本作品之新穎性不在於單一感測元件或單一演算法，而在於完整的跨域整合：從生理訊號擷取、訊號處理、邊緣 AI 推論、風險資訊視覺化，到就醫輔助資料匯出，形成具實務價值的整體解決方案。
 == Comparison with Existing Solutions
+Our system enables long-term, continuous ECG monitoring, representing a substantial advancement over typical commercial wearable devices that are generally restricted to short-duration recordings.
+In addition, the system incorporates cardiovascular risk assessment, thereby enhancing the interpretability and clinical relevance of the acquired ECG signals.
+Regarding atrial fibrillation (AF) detection, the proposed system is capable of identifying both paroxysmal and persistent AF, whereas many commercial devices primarily focus on heart rate monitoring or are limited to detecting persistent AF.
+Furthermore, the system is specifically designed for wearable, continuous operation and supports ECG acquisition under both resting and exercise conditions. In contrast, many existing commercial devices rely on finger-contact measurements and are therefore limited to short-term, resting-state recordings.
+
+// taide
+
+However, our proposed system still has its limitations: our system still only supports single-lead ECG and might not be representitive enough for cardiovascular disease (We've planned to expand to multi-lead ECG in the future to increase the amount of information for risk assessment). Also, our system still relies on gel-electrode contact for ECG measurement.
+#figure(
+  table(
+    columns: (auto, 1fr, 1fr),
+    align: (center, center, center),
+    stroke: 0.5pt,
+    fill: (_, row) => if row == 0 { luma(230) } else { none },
+
+    [*Comparison Metrics*], [*Proposed System*], [*Existing Wearable Devices*],
+
+    [ECG Monitoring Duration], [Long-term continuous monitoring], [Short-duration recordings],
+
+    [ECG Acquisition Conditions], [Resting and exercise ECG], [Primarily resting ECG],
+
+    [Measurement Method], [Gel electrodes], [Dry electrodes (finger-contact required)],
+
+    [Analytical Functionality], [ECG feature analysis, risk assessment, and AF detection], [Heart rate monitoring or limited AF detection],
+
+    [AF Detection Capability], [Paroxysmal and persistent AF], [Persistent AF detection],
+
+    [Computational Architecture], [Edge-based real-time inference with enhanced privacy], [Device-dependent; often limited on-device processing],
+  ),
+  caption: [Functional comparison with commercial products]
+) <comparison>
 === Clinical ECG systems
 === Smartwatch ECG
 == Potential Applications
@@ -83,8 +114,7 @@ Therefore, we propose an integrated framework that enables long-term ECG monitor
     [FastingBS], [fasting blood sugar], [1: > 120 mg/dl, 0: otherwise],
     [RestingECG], [resting electrocardiogram results], [Normal, ST: ST-T abnormality, LVH: left ventricular hypertrophy],
     [MaxHR], [maximum heart rate achieved], [60–202],
-    [ExerciseAngina], [exercise-induced angina], [Y: Yes, N: No],
-    [Oldpeak], [ST depression induced by exercise], [numeric],
+    [ExerciseAngina], [exegion induced by exercise], [numeric],
     [ST_Slope], [slope of the peak exercise ST segment], [Up, Flat, Down],
     [HeartDisease], [output class], [1: heart disease, 0: normal],
   ),
@@ -165,11 +195,11 @@ We validated the accuracy of the STE/STD feature by comparing it with the Europe
 
 === Model Training Methodology and Techniques
 
-==== Preprocessing
-First, public heart disease datasets were reconstructed into a comprehensive labeled dataset (918 records) with standardized feature naming and data types. Categorical variables were transformed into numerical representations via label encoding, while missing numerical values were handled using mean imputation to prevent training bias resulting from data omissions. 
+==== Feature Preprocessing
+#h(2em)First, public heart disease datasets were reconstructed into a comprehensive labeled dataset (918 records) with standardized feature naming and data types. Categorical variables were transformed into numerical representations via label encoding, while missing numerical values were handled using mean imputation to prevent training bias resulting from data omissions. 
 To address the issue of class imbalance, oversampling was employed during the training phase. This approach ensures a more balanced distribution of positive and negative classes, thereby enhancing the model's ability to identify minority classes.
 ==== Training
-Regarding data partitioning, this study adopted an 80/20 holdout split (80% training set; 20% test set) consistent with existing literature, performing cross-validation and hyperparameter optimization within the training set. A progressive evolution strategy was applied to model development; initially, multiple baseline models were evaluated, including Logistic Regression, Gradient Boosting, CatBoost, and an average probability Ensemble model. Through comprehensive comparison, CatBoost exhibited the highest potential. 
+#h(2em)Regarding data partitioning, this study adopted an 80/20 holdout split (80% training set; 20% test set) consistent with existing literature, performing cross-validation and hyperparameter optimization within the training set. A progressive evolution strategy was applied to model development; initially, multiple baseline models were evaluated, including Logistic Regression, Gradient Boosting, CatBoost, and an average probability Ensemble model. Through comprehensive comparison, CatBoost exhibited the highest potential. 
 Consequently, the final deployed model in this study evolved directly from the CatBoost baseline. By performing further fine-tuning, we effectively improved the consistency between offline evaluation and deployment behavior. The final deployed CatBoost model converged with the following hyperparameters: (iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42).
 
 #figure(
@@ -178,28 +208,31 @@ Consequently, the final deployed model in this study evolved directly from the C
 ) <model_training>
 
 ==== Classification
-To balance prediction accuracy and system robustness, a Dual-model Routing mechanism was designed for the inference stage. When a user provides a complete set of clinical features, the system prioritizes the 10-Feature Model to deliver the best predictive performance. Conversely, if specific fields are missing, the system automatically switches to the 8-Feature Model, which utilizes data directly captured by our device's sensors to ensure stable and continuous output even under conditions of incomplete information.
+#h(2em)To balance prediction accuracy and system robustness, a Dual-model Routing mechanism was designed for the inference stage. When a user provides a complete set of clinical features, the system prioritizes the 10-Feature Model to deliver the best predictive performance. Conversely, if specific fields are missing, the system automatically switches to the 8-Feature Model, which utilizes data directly captured by our device's sensors to ensure stable and continuous output even under conditions of incomplete information.
 
 ==== Performance Evaluation
-Accuracy, Precision, Recall, F1-score, and ROC-AUC were utilized as metrics for performance evaluation. Results on the holdout test set clearly illustrate the model's evolution trajectory: starting from the initial CatBoost baseline model (Accuracy 85.87%, Recall 85.29%), moving through fine-tuning, and culminating in threshold tuning. The final deployed 10-Feature model significantly pushed Accuracy and Recall to 96.57% and 97.06%, respectively.
+#h(2em)Accuracy, Precision, Recall, F1-score, and ROC-AUC were utilized as metrics for performance evaluation. Results on the holdout test set clearly illustrate the model's evolution trajectory: starting from the initial CatBoost baseline model (Accuracy 85.87%, Recall 85.29%), moving through fine-tuning, and culminating in threshold tuning. The final deployed 10-Feature model significantly pushed Accuracy and Recall to 96.57% and 97.06%, respectively.
 
-#text(size: 10pt)[Table 1. Results of hyper-parameter optimization for machine learning models]
+
 
   #set text(size: 8pt)
-  #table(
-    columns: (2.7fr, 4.3fr, 1fr, 1fr, 1fr, 1fr, 1fr),
-    align: (left, left, center, center, center, center, center),
-    stroke: 0.5pt,
-    fill: (_, y) => if y == 0 { luma(230) } else { none },
-    [*Model*], [*Parameter*], [*Accuracy*], [*AUC*], [*Precision*], [*Recall*], [*F1*],
+  #figure(
+    table(
+      columns: (2.7fr, 4.3fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+      align: (left, left, center, center, center, center, center),
+      stroke: 0.5pt,
+      fill: (_, y) => if y == 0 { luma(230) } else { none },
+      [*Model*], [*Parameter*], [*Accuracy*], [*AUC*], [*Precision*], [*Recall*], [*F1*],
 
-    [CatBoost], [{verbose=False, random_state=369}], [85.87], [90.35], [88.78], [85.29], [87.00],
-    [LogisticRegression], [{max_iter=5000, random_state=369}], [87.50], [92.53], [89.11], [88.24], [88.67],
-    [GradientBoosting], [{random_state=369}], [85.33], [91.69], [90.32], [82.35], [86.15],
-    [Ensemble], [ ], [86.96], [92.06], [90.62], [85.29], [87.88],
-    [CatBoost after fine-tuning (before threshold tuning)], [(iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42)], [91.67], [88.08], [95.70], [87.25], [91.28],
-    [CatBoost after fine-tuning (after threshold tuning)], [(iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42, threshold=0.20)], [96.57], [97.67], [96.12], [97.06], [96.59],
-  )
+      [CatBoost], [{verbose=False, random_state=369}], [85.87], [90.35], [88.78], [85.29], [87.00],
+      [LogisticRegression], [{max_iter=5000, random_state=369}], [87.50], [92.53], [89.11], [88.24], [88.67],
+      [GradientBoosting], [{random_state=369}], [85.33], [91.69], [90.32], [82.35], [86.15],
+      [Ensemble], [ ], [86.96], [92.06], [90.62], [85.29], [87.88],
+      [CatBoost after fine-tuning (before threshold tuning)], [(iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42)], [91.67], [88.08], [95.70], [87.25], [91.28],
+      [CatBoost after fine-tuning (after threshold tuning)], [(iterations=600, learning_rate=0.1, depth=6, l2_leaf_reg=3, random_seed=42, threshold=0.20)], [96.57], [97.67], [96.12], [97.06], [96.59],
+    ),
+    caption: [Comparison of Model Performance Metrics on Test Set],
+  )<tab:cvd_model_results>
 
 #set text(size: 12pt)
 #figure(
@@ -267,6 +300,15 @@ Compared to methods requiring extensive feature extraction or complex floating-p
 )
 
 \* #text(size: 10pt)[NA: Sensitivity is not applicable because no true AF episodes are present.]
+
+== TAIDE-based health assistant
+
+#h(2em) To enhance user experience and provide personalized health insights, we integrated an advanced AI assistant directly into the frontend interface. 
+
+For the core language model, we selected *Gemma-3-TAIDE-12b-Chat*, a robust 12-billion parameter model optimized by the TAIDE project. This specific model was chosen for its excellent reasoning capabilities and its strong proficiency in handling Traditional Chinese, ensuring that the health advice and explanations provided to users are both accurate and natural to read.
+
+Due to the substantial computational requirements of running a 12B parameter model, we deployed the language model as a dedicated server hosted on a Spark DGX system. This backend server handles all the heavy AI inference tasks. When a user requests health insights on the frontend application, the system makes a call to the server, retrieving the AI-generated responses efficiently. This client-server architecture ensures that the frontend remains highly responsive and accessible, without being burdened by the intensive processing demands of the large language model.
+
 
 = 量化成果與效能驗證
 　　本作品目前主要量化成果如下：
@@ -342,5 +384,5 @@ Compared to methods requiring extensive feature extraction or complex floating-p
 #bibliography(
   "works.bib",
   style: "ieee",
-  title: [十六、 參考文獻],
+  title: [References],
 )
