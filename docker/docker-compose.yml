@@ -9,6 +9,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./data:/app/backend/data
+      - /run/avahi-daemon/socket:/run/avahi-daemon/socket
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   portainer:
