@@ -268,6 +268,15 @@ Compared to methods requiring extensive feature extraction or complex floating-p
 
 \* #text(size: 10pt)[NA: Sensitivity is not applicable because no true AF episodes are present.]
 
+== TAIDE-based health assistant
+
+#h(2em) To enhance user experience and provide personalized health insights, we integrated an advanced AI assistant directly into the frontend interface. 
+
+For the core language model, we selected *Gemma-3-TAIDE-12b-Chat*, a robust 12-billion parameter model optimized by the TAIDE project. This specific model was chosen for its excellent reasoning capabilities and its strong proficiency in handling Traditional Chinese, ensuring that the health advice and explanations provided to users are both accurate and natural to read.
+
+Due to the substantial computational requirements of running a 12B parameter model, we deployed the language model as a dedicated server hosted on a Spark DGX system. This backend server handles all the heavy AI inference tasks. When a user requests health insights on the frontend application, the system makes a call to the server, retrieving the AI-generated responses efficiently. This client-server architecture ensures that the frontend remains highly responsive and accessible, without being burdened by the intensive processing demands of the large language model.
+
+
 = 量化成果與效能驗證
 　　本作品目前主要量化成果如下：
 - 我們的風險預測 AI 模型於公開心臟疾病資料集上可達約 96.6% accuracy 與 97.1% recall。
