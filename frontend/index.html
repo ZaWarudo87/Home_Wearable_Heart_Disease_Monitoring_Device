@@ -15,7 +15,8 @@
 
  <body class="min-h-screen font-sans">
 
-  <!-- Global theme toggle (visible on login/registration) -->
+  <!-- Global toggles (visible on login/registration) -->
+  <button id="language-toggle-global" class="theme-toggle text-stone-300" style="position:fixed;top:1rem;right:4rem;z-index:50" title="切換中文/English">中</button>
   <button id="theme-toggle-global" class="theme-toggle text-stone-300" style="position:fixed;top:1rem;right:1rem;z-index:50" title="切換淺色/深色模式">深</button>
 
   <!-- Login -->
@@ -107,6 +108,7 @@
        <p class="text-sm text-stone-300">歡迎回來，<span id="user-name" class="font-medium text-purple-300">...</span> <span class="mx-2">•</span> <span id="last-update">最後更新：...</span></p>
       </div>
       <div class="flex items-center space-x-2">
+        <button id="language-toggle" class="theme-toggle text-stone-300" title="切換中文/English">中</button>
        <button id="theme-toggle" class="theme-toggle text-stone-300" title="切換淺色/深色模式">深</button>
        <button id="logout-button" class="border-l-4 border-rose-700 hover:bg-rose-900 text-rose-100 px-4 py-2 rounded-r h-full transition-colors duration-200"> 登出 </button>
       </div>
@@ -318,6 +320,7 @@
 
   <!-- JavaScript Modules (order matters: config -> api -> auth -> charts -> ecg -> risk -> health-data -> ui -> app) -->
   <script src="js/theme.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>

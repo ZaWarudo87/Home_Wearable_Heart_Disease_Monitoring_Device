@@ -7,11 +7,11 @@ async function handleLoginSubmit(event) {
     const birthday = (document.getElementById('birthday').value || '').trim();
 
     if (!name) {
-        alert('請輸入姓名。');
+        alert(t('login.errorName'));
         return;
     }
     if (!birthday) {
-        alert('請輸入生日。');
+        alert(t('login.errorBirthday'));
         return;
     }
 
@@ -41,7 +41,7 @@ async function handleLoginSubmit(event) {
         }
     } catch (error) {
         console.error('Login failed:', error);
-        alert('登入失敗，請稍後再試。');
+        alert(t('login.errorFailed'));
     }
 }
 
@@ -69,6 +69,8 @@ function handleSignOut() {
 
     const globalToggle = document.getElementById('theme-toggle-global');
     if (globalToggle) globalToggle.style.display = 'block';
+    const globalLanguageToggle = document.getElementById('language-toggle-global');
+    if (globalLanguageToggle) globalLanguageToggle.style.display = 'block';
 }
 
 // --- Registration Form ---
@@ -100,7 +102,7 @@ async function handleRegistrationSubmit(event) {
 
     } catch (error) {
         console.error('Registration failed:', error);
-        alert('資料提交失敗，請稍後再試。');
+        alert(t('registration.errorSubmit'));
     }
 }
 

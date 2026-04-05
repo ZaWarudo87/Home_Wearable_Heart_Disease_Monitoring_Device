@@ -8,6 +8,8 @@ async function initializeApp(user) {
     // Hide global toggle, use header toggle instead
     const globalToggle = document.getElementById('theme-toggle-global');
     if (globalToggle) globalToggle.style.display = 'none';
+    const globalLanguageToggle = document.getElementById('language-toggle-global');
+    if (globalLanguageToggle) globalLanguageToggle.style.display = 'none';
 
     setupTabListeners();
     setupPeriodListeners();
@@ -40,7 +42,10 @@ function updateConnectionInfoBanner() {
     }
 
     if (protocolEl) {
-        protocolEl.textContent = `目前頁面使用 ${getCurrentProtocolLabel()} 連線，API 會自動對應到 ${getApiBaseUrl()}`;
+        protocolEl.textContent = t('connection.protocolInfo', {
+            protocol: getCurrentProtocolLabel(),
+            apiUrl: getApiBaseUrl()
+        });
     }
 
     if (apiUrlEl) {
@@ -55,17 +60,17 @@ function updateConnectionInfoBanner() {
             tunnelLinkEl.textContent = tunnelUrl;
             tunnelLinkEl.href = tunnelUrl;
             tunnelLinkEl.classList.remove('pointer-events-none', 'opacity-60');
-            tunnelHintEl.textContent = '這是 Cloudflare Tunnel 網址。';
+            tunnelHintEl.textContent = t('connection.tunnelReady');
         } else if (tunnelUrl) {
             tunnelLinkEl.textContent = tunnelUrl;
             tunnelLinkEl.href = tunnelUrl;
             tunnelLinkEl.classList.add('pointer-events-none', 'opacity-60');
-            tunnelHintEl.textContent = 'Cloudflare Tunnel 尚未啟用或尚未注入環境變數。';
+            tunnelHintEl.textContent = t('connection.tunnelNotReady');
         } else {
-            tunnelLinkEl.textContent = '尚未載入 Cloudflare Tunnel 網址';
+            tunnelLinkEl.textContent = t('connection.tunnelLoading');
             tunnelLinkEl.removeAttribute('href');
             tunnelLinkEl.classList.add('pointer-events-none', 'opacity-60');
-            tunnelHintEl.textContent = '如果後端有開啟 /api/cf_url，這裡會顯示可供 HTTPS 連線的公開入口。';
+            tunnelHintEl.textContent = t('connection.tunnelMissing');
         }
     }
 }
@@ -83,8 +88,11 @@ async function fetchHealthSummary() {
     try {
         const data = await fetchWithAuth('/api/v1/health/summary');
 
-        document.getElementById('last-update').textContent =
-            `最後更新：${new Date(data.last_update).toLocaleString()}`;
+        const lastUpdateEl = document.getElementById('last-update');
+        if (lastUpdateEl) {
+            lastUpdateEl.dataset.rawDatetime = data.last_update;
+            lastUpdateEl.textContent = `${t('dashboard.lastUpdatePrefix')}${new Date(data.last_update).toLocaleString(getCurrentLanguage())}`;
+        }
         document.getElementById('resting-bp').textContent = data.overview.resting_bp == 0 ? '--' : data.overview.resting_bp;
         document.getElementById('avg-hr').textContent = data.overview.avg_hr == 0 ? '--' : data.overview.avg_hr;
         document.getElementById('max-hr').textContent = data.overview.max_hr == 0 ? '--' : data.overview.max_hr;
@@ -93,27 +101,44 @@ async function fetchHealthSummary() {
 
         // Placeholder for AI advice
         const summaryEl = document.getElementById('health-summary');
-        summaryEl.textContent = '正在產生 AI 健康建議...';
+        summaryEl.dataset.dynamic = '1';
+        summaryEl.dataset.i18nState = 'ai.generating';
+        summaryEl.textContent = t('ai.generating');
 
         (async () => {
             try {
                 const advice = await fetchWithAuth('/api/v1/health/advice', {
                     method: 'POST',
-                    body: JSON.stringify({ overview: data.overview })
+                    headers: {
+                        'X-Client-Language': getCurrentLanguage()
+                    },
+                    body: JSON.stringify({
+                        overview: data.overview,
+                        language: getCurrentLanguage()
+                    })
                 });
 
                 if (!apiToken) return;
 
-                summaryEl.textContent = advice.ai_summary || '（沒有取得建議）';
+                if (advice.ai_summary) {
+                    summaryEl.dataset.i18nState = 'custom';
+                    summaryEl.textContent = advice.ai_summary;
+                } else {
+                    summaryEl.dataset.i18nState = 'ai.empty';
+                    summaryEl.textContent = t('ai.empty');
+                }
             } catch (e) {
                 console.error('Failed to fetch AI advice:', e);
-                summaryEl.textContent = 'AI 建議取得失敗，請稍後再試。';
+                summaryEl.dataset.i18nState = 'ai.failed';
+                summaryEl.textContent = t('ai.failed');
             }
         })();
 
     } catch (error) {
         console.error('Failed to fetch health summary:', error);
-        document.getElementById('health-summary').textContent = '資料載入失敗。';
+        const summaryEl = document.getElementById('health-summary');
+        summaryEl.dataset.i18nState = 'summary.loadFailed';
+        summaryEl.textContent = t('summary.loadFailed');
     }
 }
 

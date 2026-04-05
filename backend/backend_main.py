@@ -270,6 +270,7 @@ def post_health_advice():
     # Read request JSON body
     data = request.json or {}
     overview = data.get("overview")
+    language = data.get("language", "ZH")
     if not isinstance(overview, dict):
         abort(400, "Missing or invalid 'overview' (must be an object)")
 
@@ -279,7 +280,7 @@ def post_health_advice():
         # "risk": data.get("risk"),
     }
 
-    advice_text = taide.health_summary(payload)
+    advice_text = taide.health_summary(payload, lang=language)
     return jsonify({"ai_summary": advice_text})
 
 # --- Main ---

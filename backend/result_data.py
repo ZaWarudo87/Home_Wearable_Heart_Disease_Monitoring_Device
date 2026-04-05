@@ -19,7 +19,7 @@ def get_health_risk(df: pd.DataFrame, user_info: dict | None = None) -> dict:
     result = predict.predict(pd.DataFrame([data]))
     return {
         "risk_score": round(result.get("ensemble", {}).get("final_prob", 0) * 100),
-        "level": result.get("ensemble", {}).get("risk_text", "未知風險")
+        "level": result.get("ensemble", {}).get("risk_text", "Unknown Risk")
     }
 
 if __name__ == '__main__':
