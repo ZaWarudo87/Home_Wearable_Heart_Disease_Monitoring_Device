@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     libavahi-client3 \
     libavahi-common3 \
+    net-tools \
     procps \
     python3-dev \
     wget \
