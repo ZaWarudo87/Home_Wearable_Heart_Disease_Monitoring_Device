@@ -27,12 +27,11 @@ function updateAFStatus(afData) {
 function connectWebSocket() {
     if (ecgSocket || !apiToken) return;
 
-    const wsHost = API_BASE_URL.replace(/^https?:\/\//, '');
-    const proto = API_BASE_URL.startsWith('https:') ? 'wss' : 'ws';
+    const wsUrl = new URL('/ws/ecg/stream', getApiBaseUrl());
+    wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+    wsUrl.searchParams.set('token', apiToken);
 
-    const wsUrl = `${proto}://${wsHost}/ws/ecg/stream?token=${apiToken}`;
-
-    ecgSocket = new WebSocket(wsUrl);
+    ecgSocket = new WebSocket(wsUrl.toString());
 
     ecgSocket.onopen = () => {
         console.log('ECG WebSocket Connected');

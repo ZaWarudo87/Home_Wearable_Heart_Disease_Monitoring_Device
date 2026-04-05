@@ -2,7 +2,6 @@ services:
   backend:
     container_name: heart-monitor-backend
     environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY} # from .env file
       - PYTHONUNBUFFERED=1
     image: ghcr.io/zawarudo87/home_wearable_heart_disease_monitoring_device:latest
     networks:

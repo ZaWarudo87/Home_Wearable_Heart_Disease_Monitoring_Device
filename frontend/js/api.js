@@ -13,7 +13,7 @@ async function fetchWithAuth(url, options = {}) {
         ...options.headers,
     };
 
-    const fullUrl = `${API_BASE_URL}${url}`;
+    const fullUrl = buildApiUrl(url);
 
     const response = await fetch(fullUrl, { ...options, headers });
 
@@ -26,4 +26,27 @@ async function fetchWithAuth(url, options = {}) {
     }
 
     return response.json();
+}
+
+async function refreshBackendConnectionInfo() {
+    try {
+        const response = await fetch(buildApiUrl('/api/cf_url'));
+        if (!response.ok) {
+            throw new Error(`Failed to load tunnel URL: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setCloudflareTunnelUrl(data.cf_url || null);
+        updateConnectionInfoBanner();
+    } catch (error) {
+        console.error('Failed to refresh backend connection info:', error);
+        setCloudflareTunnelUrl(null);
+        updateConnectionInfoBanner();
+    }
+}
+
+function getWebSocketUrl(path) {
+    const url = new URL(path, getApiBaseUrl());
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    return url.toString();
 }

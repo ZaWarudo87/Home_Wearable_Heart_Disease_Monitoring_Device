@@ -16,4 +16,50 @@ let charts = {};
 let apiToken = null;
 
 // --- API Base URL ---
-const API_BASE_URL = "http://localhost:39244/";
+const FALLBACK_API_BASE_URL = "http://localhost:39244/";
+
+function normalizeApiBaseUrl(value) {
+    if (!value) return FALLBACK_API_BASE_URL;
+    return value.endsWith('/') ? value : `${value}/`;
+}
+
+function resolveDefaultApiBaseUrl() {
+    const { origin, protocol } = window.location;
+    if ((protocol === 'http:' || protocol === 'https:') && origin && origin !== 'null') {
+        return normalizeApiBaseUrl(origin);
+    }
+
+    return FALLBACK_API_BASE_URL;
+}
+
+let apiBaseUrl = resolveDefaultApiBaseUrl();
+let cloudflareTunnelUrl = null;
+
+function setApiBaseUrl(value) {
+    apiBaseUrl = normalizeApiBaseUrl(value);
+}
+
+function getApiBaseUrl() {
+    return apiBaseUrl;
+}
+
+function buildApiUrl(path) {
+    return new URL(path, getApiBaseUrl()).toString();
+}
+
+function getCurrentProtocolLabel() {
+    return window.location.protocol === 'https:' ? 'HTTPS' : 'HTTP';
+}
+
+function isLocalTunnelUrl(value) {
+    if (!value) return true;
+    return /localhost|127\.0\.0\.1|\[::1\]/i.test(value);
+}
+
+function setCloudflareTunnelUrl(value) {
+    cloudflareTunnelUrl = value || null;
+}
+
+function getCloudflareTunnelUrl() {
+    return cloudflareTunnelUrl;
+}

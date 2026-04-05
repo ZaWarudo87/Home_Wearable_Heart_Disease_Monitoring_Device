@@ -23,6 +23,62 @@ async function initializeApp(user) {
     document.getElementById('page-overview').classList.remove('hidden');
 }
 
+function updateConnectionInfoBanner() {
+    const connectionCard = document.getElementById('cf-url');
+    const protocolEl = document.getElementById('connection-protocol');
+    const apiUrlEl = document.getElementById('connection-api-url');
+    const tunnelLinkEl = document.getElementById('cloudflare-tunnel-link');
+    const tunnelHintEl = document.getElementById('cloudflare-tunnel-hint');
+    const shouldShowConnectionInfo = window.location.protocol === 'http:';
+
+    if (connectionCard) {
+        connectionCard.style.display = shouldShowConnectionInfo ? '' : 'none';
+    }
+
+    if (!shouldShowConnectionInfo) {
+        return;
+    }
+
+    if (protocolEl) {
+        protocolEl.textContent = `目前頁面使用 ${getCurrentProtocolLabel()} 連線，API 會自動對應到 ${getApiBaseUrl()}`;
+    }
+
+    if (apiUrlEl) {
+        apiUrlEl.textContent = getApiBaseUrl();
+    }
+
+    if (tunnelLinkEl && tunnelHintEl) {
+        const tunnelUrl = getCloudflareTunnelUrl();
+        const hasPublicTunnel = tunnelUrl && !isLocalTunnelUrl(tunnelUrl);
+
+        if (hasPublicTunnel) {
+            tunnelLinkEl.textContent = tunnelUrl;
+            tunnelLinkEl.href = tunnelUrl;
+            tunnelLinkEl.classList.remove('pointer-events-none', 'opacity-60');
+            tunnelHintEl.textContent = '這是 Cloudflare Tunnel 網址。';
+        } else if (tunnelUrl) {
+            tunnelLinkEl.textContent = tunnelUrl;
+            tunnelLinkEl.href = tunnelUrl;
+            tunnelLinkEl.classList.add('pointer-events-none', 'opacity-60');
+            tunnelHintEl.textContent = 'Cloudflare Tunnel 尚未啟用或尚未注入環境變數。';
+        } else {
+            tunnelLinkEl.textContent = '尚未載入 Cloudflare Tunnel 網址';
+            tunnelLinkEl.removeAttribute('href');
+            tunnelLinkEl.classList.add('pointer-events-none', 'opacity-60');
+            tunnelHintEl.textContent = '如果後端有開啟 /api/cf_url，這裡會顯示可供 HTTPS 連線的公開入口。';
+        }
+    }
+}
+
+async function initializeConnectionInfo() {
+    updateConnectionInfoBanner();
+    if (window.location.protocol === 'http:') {
+        await refreshBackendConnectionInfo();
+    } else {
+        setCloudflareTunnelUrl(null);
+    }
+}
+
 async function fetchHealthSummary() {
     try {
         const data = await fetchWithAuth('/api/v1/health/summary');
@@ -80,6 +136,7 @@ function mapToEditPanelValues(config) {
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('registration-form').addEventListener('submit', handleRegistrationSubmit);
     initializeLoginForm();
+    initializeConnectionInfo();
 
     const token = sessionStorage.getItem('apiToken');
     if (token) {

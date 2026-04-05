@@ -35,6 +35,15 @@ body {
     transform: translateY(-2px);
 }
 
+.connection-card {
+    backdrop-filter: blur(10px);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+}
+
+.connection-card a {
+    word-break: break-word;
+}
+
 @view-transition {
     navigation: auto;
 }

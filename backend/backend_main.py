@@ -58,6 +58,16 @@ def serve_frontend_js(filename):
     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
     return send_from_directory(os.path.join(frontend_dir, 'js'), filename)
 
+@app.route('/favicon.ico', methods=['GET'])
+def serve_favicon():
+    frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
+    return send_from_directory(frontend_dir, 'favicon.ico')
+
+@app.route('/api/cf_url', methods=['GET'])
+def get_cf_url():
+    cf_url = os.getenv('TUNNEL_URL', 'http://localhost:39244')
+    return jsonify({"cf_url": cf_url})
+
 # --- Authentication Endpoints ---
 @app.route('/api/login', methods=['POST'])
 def login_route():
