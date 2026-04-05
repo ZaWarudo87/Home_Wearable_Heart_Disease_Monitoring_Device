@@ -309,6 +309,11 @@ For the core language model, we selected *Gemma-3-TAIDE-12b-Chat*, a robust 12-b
 
 Due to the substantial computational requirements of running a 12B parameter model, we deployed the language model as a dedicated server hosted on a Spark DGX system. This backend server handles all the heavy AI inference tasks. When a user requests health insights on the frontend application, the system makes a call to the server, retrieving the AI-generated responses efficiently. This client-server architecture ensures that the frontend remains highly responsive and accessible, without being burdened by the intensive processing demands of the large language model.
 
+#figure(
+  image("pics/taide_example.png"),
+  caption: [TAIDE-based health assistant response],
+)
+
 == System Deployment, Cost Analysis, and Feasibility
 #h(2em)To evaluate the practical feasibility of the proposed system, we analyze the hardware cost structure and deployment requirements.
 
