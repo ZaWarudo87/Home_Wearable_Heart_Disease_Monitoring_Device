@@ -7,6 +7,8 @@
   title: [心悸寶貝--作品企劃書],
 )
 
+#show: template.toc
+
 = Motivation and Objectives 
 　　Cardiovascular diseases (CVDs) remain the leading cause of mortality worldwide, highlighting the critical need for effective continuous monitoring and early detection. Recent advances in wearable technologies have made electrocardiogram (ECG) monitoring increasingly accessible in daily life.
 
@@ -75,8 +77,8 @@ However, our proposed system still has its limitations: our system still only su
 　　本作品硬體架構由 AD8232 ECG 感測模組、ESP32 與 Raspberry Pi 3B 組成。AD8232 負責單導程 ECG 訊號擷取，ESP32 負責資料取樣與傳輸，Raspberry Pi 3B 則負責訊號處理、特徵萃取、AF 偵測、風險推論與結果整合。此架構可在維持系統完整性的前提下兼顧成本、可攜性與邊緣部署需求。
 
 #figure(
-  // figures.module_overview,
-  image("pics/module_overview/module_overview.jpg"),
+  scale(70%, reflow: true)[#figures.module_overview],
+  // image("pics/module_overview/module_overview.jpg"),
   caption: [作品模組全覽圖]
 ) <module_overview>
 

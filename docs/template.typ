@@ -23,3 +23,15 @@
   #show heading: set text(weight: "bold")
   #doc
 ]
+
+#let toc(doc) = [
+  #set heading(numbering: "1.1.1")
+  #show outline.entry: set outline.entry(fill: repeat([. ]))
+  
+  #outline(
+    title: [Table of Contents],
+    indent: auto
+  )
+  #pagebreak()
+  #doc
+]
