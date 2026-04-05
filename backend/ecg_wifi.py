@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import socket
-import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 from matplotlib.animation import FuncAnimation
+from zeroconf import Zeroconf
 
 import database
 import pan_tompkins_plus_plus.address_features as af
@@ -20,13 +20,14 @@ flask_app = None
 
 # --- Configuration ---
 esp32_ip = '127.0.0.1'
-PORT = 80
+PORT = int(os.getenv("ESP32_PORT", "80"))
 WINDOW_SECONDS = 10  # How many seconds to show on the live graph
 SAVE_DATA = False
 # Reconnection settings
 RECONNECT_DELAY = 2  # seconds to wait before reconnecting
 MAX_RECONNECT_ATTEMPTS = 10  # 0 for infinite attempts
 CONNECTION_TIMEOUT = 5  # socket connection timeout
+ZEROCONF_TIMEOUT_MS = int(os.getenv("ESP32_ZEROCONF_TIMEOUT_MS", "2000"))
 # CSV_PATH = "pan_tompkins_plus_plus/results_csv/window_features.csv"
 
 # Data storage
@@ -75,8 +76,96 @@ def init():
     return line,
 
 def connect_to_esp32():
-    global client_socket, socket_file, connection_lost, reconnect_attempts
-    hostname = "heart-monitor-esp32.local"
+    global client_socket, socket_file, connection_lost, reconnect_attempts, esp32_ip
+
+    def build_host_candidates() -> list:
+        hosts = []
+
+        env_host = os.getenv("ESP32_HOST", "").strip()
+        if env_host:
+            hosts.append(env_host)
+
+        env_candidates = os.getenv("ESP32_CANDIDATES", "").strip()
+        if env_candidates:
+            for candidate in env_candidates.split(','):
+                candidate = candidate.strip()
+                if candidate:
+                    hosts.append(candidate)
+
+        # Known defaults:
+        # - heart-monitor-esp32.local: real ESP32/mDNS simulator on LAN
+        # - host.docker.internal: simulator running on host while backend is in Docker
+        # - 127.0.0.1: local process-to-process fallback
+        hosts.extend([
+            "heart-monitor-esp32.local",
+            "heart-monitor-esp32",
+            "host.docker.internal",
+            esp32_ip,
+            "127.0.0.1",
+        ])
+
+        deduped_hosts = []
+        seen = set()
+        for host in hosts:
+            key = (host or "").strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped_hosts.append(key)
+        return deduped_hosts
+
+    def discover_with_zeroconf() -> list:
+        addresses = []
+        zc = None
+        try:
+            zc = Zeroconf()
+            service = zc.get_service_info(
+                "_http._tcp.local.",
+                "heart-monitor-esp32._http._tcp.local.",
+                timeout=ZEROCONF_TIMEOUT_MS,
+            )
+            if service is not None:
+                for addr in service.parsed_addresses():
+                    if addr:
+                        addresses.append(addr)
+        except Exception as e:
+            print(f"Zeroconf discovery skipped: {e}")
+        finally:
+            if zc is not None:
+                try:
+                    zc.close()
+                except Exception:
+                    pass
+        return addresses
+
+    def connect_to_host(host: str) -> bool:
+        global client_socket, socket_file, esp32_ip
+        try:
+            addr_infos = socket.getaddrinfo(host, PORT, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        except Exception as e:
+            print(f"Resolve failed for {host}: {e}")
+            return False
+
+        for family, socktype, proto, _canonname, sockaddr in addr_infos:
+            temp_socket = None
+            try:
+                temp_socket = socket.socket(family, socktype, proto)
+                temp_socket.settimeout(CONNECTION_TIMEOUT)
+                temp_socket.connect(sockaddr)
+                client_socket = temp_socket
+                socket_file = client_socket.makefile('r')
+                esp32_ip = sockaddr[0]
+                print(f"Connection successful: {host} ({esp32_ip}:{PORT})")
+                return True
+            except Exception as e:
+                print(f"Connect failed {host} -> {sockaddr[0]}:{sockaddr[1]} ({e})")
+                if temp_socket:
+                    try:
+                        temp_socket.close()
+                    except Exception:
+                        pass
+
+        return False
 
     try:
         if client_socket:
@@ -85,17 +174,26 @@ def connect_to_esp32():
             except:
                 pass
 
-        output = subprocess.check_output(["getent", "hosts", hostname], stderr=subprocess.STDOUT).decode()
-        esp32_ip = output.split()[0]
-        print(f"Connecting to {esp32_ip}:{PORT}...")
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.settimeout(CONNECTION_TIMEOUT)
-        client_socket.connect((esp32_ip, PORT))
-        socket_file = client_socket.makefile('r')
+        if socket_file:
+            try:
+                socket_file.close()
+            except:
+                pass
+            socket_file = None
+
+        candidates = build_host_candidates()
+        zc_addresses = discover_with_zeroconf()
+        if zc_addresses:
+            candidates = zc_addresses + candidates
+
+        print(f"Trying ESP32 candidates: {candidates}")
+        connected = any(connect_to_host(host) for host in candidates)
+
+        if not connected:
+            raise ConnectionError("All ESP32 host candidates failed")
 
         connection_lost = False
         reconnect_attempts = 0
-        print("Connection successful!")
         return True
 
     except Exception as e:

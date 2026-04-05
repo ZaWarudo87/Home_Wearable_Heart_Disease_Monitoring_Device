@@ -1,29 +1,20 @@
 services:
   backend:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
     container_name: heart-monitor-backend
     environment:
       - PYTHONUNBUFFERED=1
+      - ESP32_CANDIDATES=heart-monitor-esp32.local,host.docker.internal
     image: ghcr.io/zawarudo87/home_wearable_heart_disease_monitoring_device:latest
     networks:
       - heart-monitor-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "39244:39244"
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs
       - ./data:/app/backend/data
-
-  ecg-receiver:
-    build: .
-    container_name: ecg_mdns_receiver
-    environment:
-      - AVAHI_COMPAT_NOWARN=1
-    restart: unless-stopped
-    volumes:
-      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   portainer:
     container_name: portainer
