@@ -1,30 +1,39 @@
-from __future__ import annotations
-
 import os
 import json
-import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+import requests
 from typing import Any, Optional
-from google import genai
 
+TAIDE_API_URL = os.environ.get("TAIDE_API_URL", "http://140.113.95.112:8000/v1/chat/completions")
 
 def _fallback_health_summary(lang: str = "zh-TW") -> str:
     if lang.lower().startswith("zh"):
-        return("（離線模式）目前無法連線到 Gemini，請稍候再嘗試。")
+        return "（離線模式）目前無法連線到 TAIDE 模型，請稍候再嘗試。"
     else:
-        return("(Offline mode) Gemini is unavailable, please try again later.")
+        return "(Offline mode) TAIDE model is unavailable, please try again later."
 
 
-def generate_text(prompt: str, model: str = "gemini-3-flash-preview") -> str:
-    client = genai.Client()
-    if client is None:
-        raise RuntimeError("Gemini not configured: missing/invalid GEMINI_API_KEY or SDK not installed.")
-    else:
-        response = client.models.generate_content(
-            model=model,
-            contents=prompt,
-        )
-    return response.text
+def generate_text(system_prompt: str, user_prompt: str) -> str:
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ]
+
+    payload = {
+        "model": "taide-12b",
+        "messages": messages,
+        "temperature": 0.2,
+        "max_tokens": 512
+    }
+
+    try:
+        response = requests.post(TAIDE_API_URL, json=payload, timeout=60)
+        response.raise_for_status()
+
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
+
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"Local TAIDE API request failed: {e}")
 
 
 def health_summary(
@@ -51,11 +60,10 @@ def health_summary(
             "Output should be pure text, without any styling."
         )
 
-    prompt = system + "\n\n" + "User data (JSON):\n" + json.dumps(payload, ensure_ascii=False)
+    user_content = "User data (JSON):\n" + json.dumps(payload, ensure_ascii=False)
 
     try:
-        return generate_text(prompt)
+        return generate_text(system_prompt=system, user_prompt=user_content)
     except Exception as e:
-        print(f"Gemini generation error: {e}")
-        # Safety: never break the API response
-        return _fallback_health_summary()
+        print(f"TAIDE generation error: {e}")
+        return _fallback_health_summary(lang)

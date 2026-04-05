@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import socket
+import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 from matplotlib.animation import FuncAnimation
@@ -18,7 +19,7 @@ from AF_detection import AFRdRDetector
 flask_app = None
 
 # --- Configuration ---
-ESP32_IP = '192.168.56.1'
+esp32_ip = '127.0.0.1'
 PORT = 80
 WINDOW_SECONDS = 10  # How many seconds to show on the live graph
 SAVE_DATA = False
@@ -48,6 +49,7 @@ now_ecg_data = {
     "calc_time": 0.0
 }
 mode = "rest_ecg_data_"
+is_exercise = False
 exec = ThreadPoolExecutor()
 af_detector = AFRdRDetector(fs_hz=160, window_beats=128, nec_threshold=65, min_new_rr_for_update=10)
 last_af_result = {
@@ -69,31 +71,33 @@ _ecg_running_mean = None
 
 def init():
     ax.set_xlim(0, WINDOW_SECONDS)
-    ax.set_ylim(-2, 5) 
+    ax.set_ylim(-2, 5)
     return line,
 
 def connect_to_esp32():
     global client_socket, socket_file, connection_lost, reconnect_attempts
-    
-    print(f"Connecting to {ESP32_IP}:{PORT}...")
-    
+    hostname = "heart-monitor-esp32.local"
+
     try:
         if client_socket:
             try:
                 client_socket.close()
             except:
                 pass
-        
+
+        output = subprocess.check_output(["getent", "hosts", hostname], stderr=subprocess.STDOUT).decode()
+        esp32_ip = output.split()[0]
+        print(f"Connecting to {esp32_ip}:{PORT}...")
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.settimeout(CONNECTION_TIMEOUT)
-        client_socket.connect((ESP32_IP, PORT))
+        client_socket.connect((esp32_ip, PORT))
         socket_file = client_socket.makefile('r')
-        
+
         connection_lost = False
         reconnect_attempts = 0
         print("Connection successful!")
         return True
-        
+
     except Exception as e:
         print(f"Connection failed: {e}")
         return False
@@ -101,10 +105,10 @@ def connect_to_esp32():
 def reconnect():
     global connection_lost
     connection_lost = True
-    
+
     print(f"Attempting to reconnect...")
     time.sleep(RECONNECT_DELAY)
-    
+
     return connect_to_esp32()
 
 def _has_nan(d: dict) -> bool:
@@ -130,7 +134,7 @@ def update_now_ecg(data: dict) -> None:
         if now_ecg_ts_min != 0 and flask_app is not None:
             with flask_app.app_context():
                 try:
-                    database.add_hr_record(heart_rate = sum(ecg_data_cache) / len(ecg_data_cache))
+                    database.add_hr_record(heart_rate = sum(ecg_data_cache) / len(ecg_data_cache), is_exercise = is_exercise)
                 except Exception as e:
                     print(f"Error saving HR record: {e}")
         now_ecg_ts_min = now_ts
@@ -145,18 +149,18 @@ def update_now_ecg(data: dict) -> None:
                 print(f"Error saving window feature: {e}")
 
 def update(frame):
-    global last_ts, last_ecg_chunk, last_temp_chunk, mode, connection_lost, last_af_result
-    
+    global last_ts, last_ecg_chunk, last_temp_chunk, mode, connection_lost, last_af_result, is_exercise
+
     if connection_lost:
         if not reconnect():
             return line,
-    
+
     try:
         if socket_file is None:
             return line,
-            
+
         line_data = socket_file.readline().strip()
-        
+
         if not line_data and not connection_lost:
             try:
                 client_socket.send(b'\n')
@@ -164,23 +168,23 @@ def update(frame):
                 print("Connection lost detected, preparing to reconnect...")
                 connection_lost = True
                 return line,
-        
+
         if line_data:
             # format: time_us,isExercise,voltage
             parts = line_data.split(',')
             if len(parts) != 3:
                 return line,
-            
+
             try:
                 t_us = int(parts[0])           # ESP32 timestamp in microseconds
                 is_exercise = int(parts[1])    # 0 = REST, 1 = EXERCISE
                 voltage_str = parts[2].strip() # voltage or "NaN"
             except ValueError:
                 return line,
-            
+
             # Determine new mode from isExercise flag
             new_mode = "exercise_ecg_data_" if is_exercise else "rest_ecg_data_"
-            
+
             # If mode switched, flush current buffer with the previous mode
             # Only flush if enough samples for meaningful R-peak detection (>= 2s at 160Hz)
             MIN_FLUSH_SAMPLES = 320
@@ -199,13 +203,13 @@ def update(frame):
                 temp_values.clear()
                 last_ts = time.time()
             mode = new_mode
-            
+
             # Skip lead-off samples
             if voltage_str == "NaN":
                 return line,
-            
+
             val = float(voltage_str)
-            
+
             # Use ESP32 timestamp for precise relative time (seconds)
             now_timestamp = time.time()
             now = now_timestamp - start_timestamp
@@ -222,22 +226,22 @@ def update(frame):
                 temp_values.clear()
                 last_ts = now_timestamp
                 # print(f"lec: {last_ecg_chunk}, ltc: {last_temp_chunk}")
-            
+
             temp_times.append(now)
             temp_values.append(val)
             _ecg_ws_deque.append((now, val))
-            
+
             if SAVE_DATA:
                 # Save to permanent lists
                 all_times.append(now)
                 all_values.append(val)
 
                 # Update plot data (showing only last WINDOW_SECONDS)
-                plot_slice_t = all_times[0:] 
+                plot_slice_t = all_times[0:]
                 plot_slice_v = all_values[0:]
-                
+
                 line.set_data(plot_slice_t, plot_slice_v)
-            
+
                 # Shift X-axis view
                 if now > WINDOW_SECONDS:
                     ax.set_xlim(now - WINDOW_SECONDS, now)

@@ -33,6 +33,6 @@ async function handleHealthDataSubmit(event) {
         await fetchHealthSummary();
     } catch (error) {
         console.error('Health data submission failed:', error);
-        alert('健康數據提交失敗，請稍後再試。');
+        alert(t('health.errorSubmit'));
     }
 }

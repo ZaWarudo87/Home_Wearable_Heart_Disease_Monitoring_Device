@@ -9,25 +9,44 @@
   <link rel="stylesheet" href="style.css">
 
   <!-- External Scripts -->
-  <script src="/_sdk/element_sdk.js"></script>
-  <script src="/_sdk/data_sdk.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
  </head>
 
  <body class="min-h-screen font-sans">
 
-  <!-- Global theme toggle (visible on login/registration) -->
-  <button id="theme-toggle-global" class="theme-toggle" style="position:fixed;top:1rem;right:1rem;z-index:50" title="切換淺色/深色模式">深</button>
+  <!-- Global toggles (visible on login/registration) -->
+  <button id="language-toggle-global" class="theme-toggle text-stone-300" style="position:fixed;top:1rem;right:4rem;z-index:50" title="切換中文/English">中</button>
+  <button id="theme-toggle-global" class="theme-toggle text-stone-300" style="position:fixed;top:1rem;right:1rem;z-index:50" title="切換淺色/深色模式">深</button>
 
   <!-- Login -->
   <div id="login-view" class="flex items-center justify-center min-h-screen">
-   <div class="bg-rose-950 p-8 rounded-lg shadow-lg text-center">
-       <h1 class="text-3xl font-bold text-rose-100 mb-1">心悸寶貝</h1>
-       <h2 class="text-xl font-bold text-stone-400 mb-4">您的心臟健康小幫手</h2>
-    <p class="text-stone-600 mb-6">請使用 Google 帳戶登入</p>
-    <div id="g_id_signin"></div>
+   <div class="bg-rose-950 p-8 rounded-lg shadow-lg">
+    <div class="text-center">
+      <h1 class="text-3xl font-bold text-rose-100 mb-1">心悸寶貝</h1>
+      <h2 class="text-xl font-bold text-stone-400 mb-4">您的心臟健康小幫手</h2>
+    </div>
+    <div class="max-w-md w-full">
+      <div id="cf-url" class="connection-card mb-6 rounded-lg border border-rose-700 p-4">
+        <p class="text-sm text-stone-300">若要透過 HTTPS 直接開啟系統，請使用：</p>
+        <a id="cloudflare-tunnel-link" class="mt-2 block break-all text-sm text-pink-300 underline decoration-pink-500/60" href="#" target="_blank" rel="noopener noreferrer">尚未載入 Cloudflare Tunnel 網址</a>
+        <p id="cloudflare-tunnel-hint" class="mt-2 text-xs text-stone-400">正在向後端查詢可用的公開網址。</p>
+      </div>
+      <p class="text-stone-600 mb-6">請輸入身份資料</p>
+      <form id="login-form" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-stone-300 mb-2">姓名</label>
+        <input id="name" class="w-full px-3 py-2 bg-rose-800 text-stone-300 rounded-md focus:ring-2 focus:ring-rose-500" placeholder="請輸入完整姓名">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-stone-300 mb-2">生日</label>
+        <input type="date" id="birthday" class="w-full px-3 py-2 bg-rose-800 text-stone-300 rounded-md focus:ring-2 focus:ring-rose-500" min="1900-01-01" max="2026-04-04" placeholder="1900-01-01">
+      </div>
+      <button type="submit" class="w-full bg-pink-600 hover:bg-pink-500 text-rose-100 px-4 py-2 rounded-md transition-colors duration-200">
+        登入
+      </button>
+      </form>
+    </div>
    </div>
   </div>
 
@@ -44,10 +63,6 @@
        <option value="M">男性</option>
        <option value="F">女性</option>
       </select>
-     </div>
-     <div>
-      <label class="block text-sm font-medium text-stone-300 mb-2">年齡</label>
-      <input type="number" id="age" required min="1" max="120" class="w-full px-3 py-2 bg-rose-800 text-stone-300 rounded-md focus:ring-2 focus:ring-rose-500" placeholder="請輸入年齡">
      </div>
      <div>
       <label class="block text-sm font-medium text-stone-300 mb-2">胸痛類別</label>
@@ -93,7 +108,8 @@
        <p class="text-sm text-stone-300">歡迎回來，<span id="user-name" class="font-medium text-purple-300">...</span> <span class="mx-2">•</span> <span id="last-update">最後更新：...</span></p>
       </div>
       <div class="flex items-center space-x-2">
-       <button id="theme-toggle" class="theme-toggle" title="切換淺色/深色模式">深</button>
+        <button id="language-toggle" class="theme-toggle text-stone-300" title="切換中文/English">中</button>
+       <button id="theme-toggle" class="theme-toggle text-stone-300" title="切換淺色/深色模式">深</button>
        <button id="logout-button" class="border-l-4 border-rose-700 hover:bg-rose-900 text-rose-100 px-4 py-2 rounded-r h-full transition-colors duration-200"> 登出 </button>
       </div>
      </div>
@@ -107,6 +123,7 @@
        <div class="flex items-center justify-between">
         <div>
          <p class="text-sm font-medium text-rose-100">靜息血壓</p>
+         <p class="text-xs text-stone-300">Resting BP</p>
          <p id="resting-bp" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300">mmHg</p>
         </div>
@@ -116,6 +133,7 @@
        <div class="flex items-center justify-between">
         <div>
          <p class="text-sm font-medium text-rose-100">平均心率</p>
+         <p class="text-xs text-stone-300">Average HR</p>
          <p id="avg-hr" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300">bpm</p>
         </div>
@@ -125,6 +143,7 @@
        <div class="flex items-center justify-between">
         <div>
          <p class="text-sm font-medium text-rose-100">最大心率</p>
+         <p class="text-xs text-stone-300">Max HR</p>
          <p id="max-hr" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300">bpm</p>
         </div>
@@ -133,7 +152,8 @@
       <div class="bg-rose-950 rounded-lg shadow-lg p-6">
        <div class="flex items-center justify-between">
         <div>
-         <p class="text-sm font-medium text-rose-100">ST slope</p>
+         <p class="text-sm font-medium text-rose-100">ST 斜率</p>
+         <p class="text-xs text-stone-300">ST slope</p>
          <p id="st-slope" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300"> </p>
         </div>
@@ -143,7 +163,8 @@
       <div class="bg-rose-950 rounded-lg shadow-lg p-6">
        <div class="flex items-center justify-between">
         <div>
-         <p class="text-sm font-medium text-rose-100">RestingECG</p>
+         <p class="text-sm font-medium text-rose-100">靜息 ECG</p>
+         <p class="text-xs text-stone-300">Resting ECG</p>
          <p id="resting-ecg" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300"> </p>
         </div>
@@ -152,7 +173,8 @@
       <div class="bg-rose-950 rounded-lg shadow-lg p-6">
        <div class="flex items-center justify-between">
         <div>
-         <p class="text-sm font-medium text-rose-100">心房顫動 (AF Detection)</p>
+         <p class="text-sm font-medium text-rose-100">心房顫動</p>
+         <p class="text-xs text-stone-300">AF Detection</p>
          <p id="af-detected" class="text-3xl font-bold text-rose-50">--</p>
          <p class="text-xs text-stone-300"> </p>
         </div>
@@ -298,6 +320,7 @@
 
   <!-- JavaScript Modules (order matters: config -> api -> auth -> charts -> ecg -> risk -> health-data -> ui -> app) -->
   <script src="js/theme.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>

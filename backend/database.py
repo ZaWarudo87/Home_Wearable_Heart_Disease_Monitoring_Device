@@ -5,7 +5,7 @@ import numpy as np
 import lttbc
 
 from bisect import bisect_left
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
@@ -19,15 +19,20 @@ now_user_id = -1
 
 class User(db.Model):
     __tablename__ = 'users'
-    
+
     id = db.Column(db.Integer, primary_key=True)
-    google_id = db.Column(db.String(255), unique=True, nullable=False)
-    email = db.Column(db.String(255), unique=True, nullable=False)
     name = db.Column(db.String(255), nullable=False)
-    api_token = db.Column(db.String(255), unique=True, nullable=False)
+    birthday = db.Column(db.Date, nullable=False)
     profile_completed = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
-    
+
+    @property
+    def age(self):
+        if self.birthday:
+            today = date.today()
+            return today.year - self.birthday.year - ((today.month, today.day) < (self.birthday.month, self.birthday.day))
+        return None
+
     # Relationships
     profile = db.relationship('UserProfile', backref='user', uselist=False, cascade='all, delete-orphan')
     health_records = db.relationship('HealthRecord', backref='user', lazy='dynamic', cascade='all, delete-orphan')
@@ -37,11 +42,10 @@ class User(db.Model):
 
 class UserProfile(db.Model):
     __tablename__ = 'user_profiles'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     sex = db.Column(db.String(10), nullable=False)  # 'M' or 'F'
-    age = db.Column(db.Integer, nullable=False)
     chest_pain_type = db.Column(db.String(50), nullable=False)
     exercise_angina = db.Column(db.Boolean, nullable=False)
     resting_ecg = db.Column(db.Boolean, nullable=False)  # True if LVH
@@ -51,7 +55,7 @@ class UserProfile(db.Model):
 
 class HealthRecord(db.Model):
     __tablename__ = 'health_records'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     resting_bp = db.Column(db.Integer, nullable=False)
@@ -62,16 +66,17 @@ class HealthRecord(db.Model):
 
 class HRRecord(db.Model):
     __tablename__ = 'hr_records'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     heart_rate = db.Column(db.Float, nullable=False)
+    is_exercise = db.Column(db.Boolean, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.now)
 
 
 class WindowFeature(db.Model):
     __tablename__ = 'window_features'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     file = db.Column(db.String(255), nullable=False)
@@ -95,24 +100,23 @@ def init_db(app):
 
 # ==================== User Functions ====================
 
-def create_user(google_id: str, email: str, name: str, api_token: str) -> User:
+def create_user(name: str, birthday_str: str) -> User:
     user = User(
-        google_id=google_id,
-        email=email,
         name=name,
-        api_token=api_token,
+        birthday=datetime.strptime(birthday_str, '%Y-%m-%d').date(),
         profile_completed=False
     )
     db.session.add(user)
     db.session.commit()
     return user
 
+def get_user_by_name_birth(name: str, birthday_str: str) -> User:
+    birthday = datetime.strptime(birthday_str, '%Y-%m-%d').date()
+    return User.query.filter_by(name=name, birthday=birthday).first()
 
-def get_user_by_google_id(google_id: str) -> User:
-    return User.query.filter_by(google_id=google_id).first()
 
-def get_user_by_token(api_token: str) -> User:
-    return User.query.filter_by(api_token=api_token).first()
+def get_user_by_id(user_id: int) -> User:
+    return User.query.get(user_id)
 
 
 # ==================== Profile Functions ====================
@@ -121,11 +125,10 @@ def update_userdata(user_id: int, data: dict) -> dict:
     user = User.query.get(user_id)
     if not user:
         return {"error": "User not found"}
-    
+
     if user.profile:
         # Update existing profile
         user.profile.sex = data["sex"]
-        user.profile.age = data["age"]
         user.profile.chest_pain_type = data["chest_pain_type"]
         user.profile.exercise_angina = data["exercise_angina"]
         user.profile.resting_ecg = data["resting_ecg"]
@@ -134,16 +137,15 @@ def update_userdata(user_id: int, data: dict) -> dict:
         profile = UserProfile(
             user_id=user_id,
             sex=data["sex"],
-            age=data["age"],
             chest_pain_type=data["chest_pain_type"],
             exercise_angina=data["exercise_angina"],
             resting_ecg=data["resting_ecg"]
         )
         db.session.add(profile)
-    
+
     user.profile_completed = True
     db.session.commit()
-    
+
     return {"message": "Profile updated successfully"}
 
 
@@ -153,7 +155,7 @@ def add_health_record(user_id: int, data: dict) -> dict:
     user = User.query.get(user_id)
     if not user:
         return {"error": "User not found"}
-    
+
     # Delete too old records OR records from today (keep only latest per day)
     cutoff_time = datetime.now() - timedelta(days=30)
     today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -164,14 +166,14 @@ def add_health_record(user_id: int, data: dict) -> dict:
             HealthRecord.timestamp >= today_start  # Delete today's old records
         )
     ).delete()
-    
+
     # Convert fasting_bs to boolean (True if > 120 mg/dl)
     fasting_bs_value = data["fasting_bs"]
     if isinstance(fasting_bs_value, bool):
         fasting_bs_bool = fasting_bs_value
     else:
         fasting_bs_bool = int(fasting_bs_value) > 120
-    
+
     record = HealthRecord(
         user_id=user_id,
         resting_bp=data["resting_bp"],
@@ -180,7 +182,7 @@ def add_health_record(user_id: int, data: dict) -> dict:
     )
     db.session.add(record)
     db.session.commit()
-    
+
     return {"message": "Health record added successfully"}
 
 
@@ -188,7 +190,7 @@ def get_health_data(user_id: int) -> dict:
     user = User.query.get(user_id)
     if not user:
         return {"error": "User not found"}
-    
+
     records = user.health_records.order_by(HealthRecord.timestamp.desc()).all()
     health_data = [{
         "resting_bp": r.resting_bp,
@@ -201,7 +203,7 @@ def get_health_data(user_id: int) -> dict:
 
 # ==================== Chart Data Functions ====================
 
-def add_hr_record(user_id: int = now_user_id, heart_rate: float = 0.0) -> dict:
+def add_hr_record(user_id: int = now_user_id, heart_rate: float = 0.0, is_exercise: bool = False) -> dict:
     # Delete too old records
     cutoff_time = datetime.now() - timedelta(days=7)
 
@@ -214,7 +216,8 @@ def add_hr_record(user_id: int = now_user_id, heart_rate: float = 0.0) -> dict:
 
     record = HRRecord(
         user_id=user_id,
-        heart_rate=heart_rate
+        heart_rate=heart_rate,
+        is_exercise=is_exercise
     )
     db.session.add(record)
     db.session.commit()
@@ -229,12 +232,12 @@ def update_hr_record() -> None:
 
 def get_chart_data(user_id: int, points: int, data_type: str = 'hr', max_points: int = 0) -> dict:
     user = User.query.get(user_id)
-    
+
     if data_type == 'hr':
         records = HRRecord.query.filter_by(user_id=user_id)\
             .order_by(HRRecord.timestamp.desc())\
             .limit(points * 6).all()
-        
+
         if records:
             earliest_time = (datetime.now() - timedelta(minutes=points)).timestamp()
             while records and records[-1].timestamp.timestamp() < earliest_time:
@@ -273,7 +276,7 @@ def get_chart_data(user_id: int, points: int, data_type: str = 'hr', max_points:
         records = HealthRecord.query.filter_by(user_id=user_id)\
             .order_by(HealthRecord.timestamp.desc())\
             .limit(points).all()
-        
+
         if records:
             earliest_time = (datetime.now() - timedelta(days=points)).timestamp()
             while records and records[-1].timestamp.timestamp() < earliest_time:
@@ -297,7 +300,7 @@ def get_chart_data(user_id: int, points: int, data_type: str = 'hr', max_points:
 def add_window_feature(user_id: int, data: dict) -> dict:
     if user_id == -1:
         user_id = now_user_id
-    
+
     # Keep only the latest 8192 records, delete older ones
     current_count = WindowFeature.query.filter_by(user_id=user_id).count()
     if current_count >= 8192:
@@ -307,7 +310,7 @@ def add_window_feature(user_id: int, data: dict) -> dict:
             .limit(records_to_delete).all()
         for record in old_records:
             db.session.delete(record)
-    
+
     feature = WindowFeature(
         user_id=user_id,
         file=data.get('file', ''),
@@ -327,7 +330,7 @@ def add_window_feature(user_id: int, data: dict) -> dict:
 def get_window_features(user_id: int = now_user_id) -> pd.DataFrame:
     records = WindowFeature.query.filter_by(user_id=user_id)\
         .order_by(WindowFeature.timestamp.desc()).all()
-    
+
     return pd.DataFrame([{
         'file': r.file,
         'fs_hz': r.fs_hz,
@@ -343,11 +346,12 @@ def get_window_features(user_id: int = now_user_id) -> pd.DataFrame:
 
 def get_model_user_info(user_id: int) -> dict:
     profile = UserProfile.query.filter_by(user_id=user_id).first()
+    get_user = User.query.filter_by(id=user_id).first()
     latest_health = HealthRecord.query.filter_by(user_id=user_id)\
         .order_by(HealthRecord.timestamp.desc()).first()
 
     user_info = {
-        "Age": profile.age if profile else 0,
+        "Age": get_user.age if get_user else 0,
         "Sex": profile.sex if profile else "M",
         "ChestPainType": profile.chest_pain_type if profile else "ASY",
         "ExerciseAngina": "Y" if (profile.exercise_angina if profile else False) else "N",
@@ -363,29 +367,29 @@ def get_model_user_info(user_id: int) -> dict:
 
 def get_health_summary(user_id: int) -> dict:
     user = User.query.get(user_id)
-    
+
     # Get latest health record
     latest_health = HealthRecord.query.filter_by(user_id=user_id)\
         .order_by(HealthRecord.timestamp.desc()).first()
-    
+
     # Get latest HR records for avg/max calculation
-    hr_records = HRRecord.query.filter_by(user_id=user_id)\
+    hr_records = HRRecord.query.filter_by(user_id=user_id, is_exercise=False)\
         .order_by(HRRecord.timestamp.desc()).limit(100).all()
-    
+
     if hr_records:
         avg_hr = sum(r.heart_rate for r in hr_records) // len(hr_records)
     else:
         avg_hr = 0
-    
+
     resting_bp = latest_health.resting_bp if latest_health else 0
-    
+
     global now_user_id
     now_user_id = user_id
     user_info = get_model_user_info(user_id)
     user_other_info = result_data.parse_user_info(user_info, get_window_features())
 
     update_hr_record()
-    
+
     return {
         "last_update": datetime.now().isoformat(),
         "overview": {
@@ -423,31 +427,31 @@ def show_all_tables():
     print("\n" + "="*80)
     print("DATABASE CONTENT")
     print("="*80)
-    
+
     # Users table
     users = User.query.all()
     print(f"\nUSERS ({len(users)} records)")
     print("-" * 80)
     if users:
-        print(f"{'ID':<5} {'Google ID':<15} {'Name':<20} {'Email':<30} {'Completed':<10}")
+        print(f"{'ID':<5} {'Name':<20} {'Birthday':<12} {'Completed':<10}")
         print("-" * 80)
         for user in users:
-            print(f"{user.id:<5} {user.google_id[:14]:<15} {user.name[:19]:<20} {user.email[:29]:<30} {user.profile_completed:<10}")
+            print(f"{user.id:<5} {user.name[:19]:<20} {user.birthday.isoformat():<12} {user.profile_completed:<10}")
     else:
         print("(No users found)")
-    
+
     # User Profiles table
     profiles = UserProfile.query.all()
     print(f"\nUSER PROFILES ({len(profiles)} records)")
     print("-" * 60)
     if profiles:
-        print(f"{'ID':<5} {'User ID':<8} {'Sex':<5} {'Age':<5} {'Chest Pain':<15} {'Ex.Angina':<10} {'Resting ECG':<10}")
+        print(f"{'ID':<5} {'User ID':<8} {'Sex':<5} {'Chest Pain':<15} {'Ex.Angina':<10} {'Resting ECG':<10}")
         print("-" * 60)
         for profile in profiles:
-            print(f"{profile.id:<5} {profile.user_id:<8} {profile.sex:<5} {profile.age:<5} {profile.chest_pain_type[:14]:<15} {profile.exercise_angina:<10} {profile.resting_ecg:<10}")
+            print(f"{profile.id:<5} {profile.user_id:<8} {profile.sex:<5} {profile.chest_pain_type[:14]:<15} {profile.exercise_angina:<10} {profile.resting_ecg:<10}")
     else:
         print("(No profiles found)")
-    
+
     # Health Records table
     health_records = HealthRecord.query.all()
     print(f"\nHEALTH RECORDS ({len(health_records)} records)")
@@ -459,8 +463,8 @@ def show_all_tables():
             print(f"{record.id:<5} {record.user_id:<8} {record.resting_bp:<5} {record.cholesterol:<5} {record.fasting_bs:<8} {record.timestamp.strftime('%Y-%m-%d %H:%M:%S'):<19}")
     else:
         print("(No health records found)")
-    
-    # HR Records table  
+
+    # HR Records table
     hr_records = HRRecord.query.order_by(HRRecord.timestamp.desc()).limit(10).all()
     total_hr = HRRecord.query.count()
     print(f"\nHR RECORDS ({total_hr} total, showing last 10)")
@@ -472,7 +476,7 @@ def show_all_tables():
             print(f"{record.id:<5} {record.user_id:<8} {record.heart_rate:<5} {record.timestamp.strftime('%Y-%m-%d %H:%M:%S'):<19}")
     else:
         print("(No HR records found)")
-    
+
     # Window Features table
     window_features = WindowFeature.query.order_by(WindowFeature.timestamp.desc()).limit(10).all()
     total_wf = WindowFeature.query.count()
@@ -485,7 +489,7 @@ def show_all_tables():
             print(f"{record.id:<5} {record.user_id:<3} {record.max_hr:<8.1f} {record.avg_hr:<8.1f} {record.st_label or 'N/A':<10} {record.oldpeak:<8.1f} {record.resting_ecg:<10} {record.timestamp.strftime('%Y-%m-%d %H:%M:%S'):<19}")
     else:
         print("(No window features found)")
-    
+
     print("\n" + "="*80)
 
 def delete_user_by_id(user_id: int):
@@ -502,24 +506,24 @@ if __name__ == '__main__':
     app = Flask(__name__)
     data_dir = os.path.join(os.path.dirname(__file__), 'data')
     os.makedirs(data_dir, exist_ok=True)
-    
+
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(data_dir, "data.db")}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    
+
     parser = argparse.ArgumentParser(description='Database operations')
     parser.add_argument('command', choices=['show_all_tables',
                                             'clear_database',
                                             'delete_user',
                                             'clear_hr_records',
                                             'clear_health_records',
-                                            'clear_window_features'], 
+                                            'clear_window_features'],
                        help='Database command to execute')
     parser.add_argument('--user_id', type=int, help='User ID to delete (required for delete_user command)')
-    
+
     args = parser.parse_args()
-    
+
     init_db(app)
-    
+
     with app.app_context():
         if args.command == 'show_all_tables':
             show_all_tables()

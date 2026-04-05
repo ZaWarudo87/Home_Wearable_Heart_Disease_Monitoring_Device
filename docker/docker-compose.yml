@@ -1,18 +1,16 @@
 services:
   backend:
     container_name: heart-monitor-backend
+    network_mode: "host" 
     environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY} # from .env file
       - PYTHONUNBUFFERED=1
     image: ghcr.io/zawarudo87/home_wearable_heart_disease_monitoring_device:latest
-    networks:
-      - heart-monitor-network
-    ports:
-      - "39244:39244"
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs
-      - ./data:/app/data
+      - ./data:/app/backend/data
+      - /run/avahi-daemon/socket:/run/avahi-daemon/socket
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
   portainer:
     container_name: portainer

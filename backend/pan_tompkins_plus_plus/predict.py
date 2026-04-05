@@ -86,7 +86,7 @@ def preprocess_input(raw_df: pd.DataFrame, model_config: dict) -> pd.DataFrame:
 
 
 def risk_text_from_prob(prob: float, threshold: float) -> str:
-    return "有風險" if prob >= threshold else "無風險"
+    return "At Risk" if prob >= threshold else "No Risk"
 
 
 def predict(raw_df: pd.DataFrame, debug: bool = False) -> dict:

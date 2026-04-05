@@ -35,6 +35,14 @@ body {
     transform: translateY(-2px);
 }
 
+.connection-card {
+    backdrop-filter: blur(10px);
+}
+
+.connection-card a {
+    word-break: break-word;
+}
+
 @view-transition {
     navigation: auto;
 }
@@ -83,10 +91,6 @@ html.light-mode .bg-rose-950 {
 /* Cards & panels */
 html.light-mode .bg-rose-800 {
     background-color: #fecdd3 !important;
-}
-
-html.light-mode input.bg-rose-800 {
-    background-color: #ffffff !important;
 }
 
 /* Info panels */
@@ -164,9 +168,9 @@ html.light-mode .bg-pink-600 {
 }
 
 /* Inputs */
-html.light-mode select,
+html.light-mode select.bg-rose-800,
 html.light-mode input[type="number"] {
-    background-color: #fecdd3 !important;
+    background-color: #ffffff !important;
     color: #1c1917 !important;
     border: 1px solid #fda4af;
 }

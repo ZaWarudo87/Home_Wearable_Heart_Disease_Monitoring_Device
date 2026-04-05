@@ -19,7 +19,7 @@ let ecgDisplayOffset = null;          // first data-time of this display session
 function updateAFStatus(afData) {
     const detectedEl = document.getElementById('af-detected');
     if (!detectedEl || !afData) return;
-    detectedEl.textContent = afData.af_detected ? '有風險' : '無風險';
+    detectedEl.textContent = afData.af_detected ? t('af.risk') : t('af.noRisk');
 }
 
 // --- WebSocket ---
@@ -27,12 +27,11 @@ function updateAFStatus(afData) {
 function connectWebSocket() {
     if (ecgSocket || !apiToken) return;
 
-    const wsHost = API_BASE_URL.replace(/^https?:\/\//, '');
-    const proto = API_BASE_URL.startsWith('https:') ? 'wss' : 'ws';
+    const wsUrl = new URL('/ws/ecg/stream', getApiBaseUrl());
+    wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+    wsUrl.searchParams.set('token', apiToken);
 
-    const wsUrl = `${proto}://${wsHost}/ws/ecg/stream?token=${apiToken}`;
-
-    ecgSocket = new WebSocket(wsUrl);
+    ecgSocket = new WebSocket(wsUrl.toString());
 
     ecgSocket.onopen = () => {
         console.log('ECG WebSocket Connected');
@@ -68,7 +67,7 @@ function connectWebSocket() {
                 const modeEl = document.getElementById('ecg-mode-indicator');
                 if (modeEl) {
                     isExercise = data.mode === 'exercise';
-                    modeEl.textContent = isExercise ? '運動模式' : '靜息模式';
+                    modeEl.textContent = isExercise ? t('ecg.exerciseMode') : t('ecg.restMode');
                     modeEl.className = isExercise
                         ? 'text-sm font-semibold px-3 py-1 shadow-lg bg-purple-950 text-purple-200'
                         : 'text-sm font-semibold px-3 py-1 shadow-lg bg-rose-900 text-rose-200';
@@ -136,7 +135,7 @@ function initializeECGChart() {
                     offset: false,
                     title: {
                         display: true,
-                        text: '時間 (秒)',
+                        text: t('ecg.xAxisTime'),
                         color: getThemeChartColors().tick,
                     },
                     ticks: {
@@ -383,12 +382,19 @@ function downloadEcgImage() {
     ctx.fillStyle = '#1c1917';
     ctx.font = 'bold 18px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('ECG 心電圖紀錄', pad.left, 30);
+    ctx.fillText(t('ecg.recordTitle'), pad.left, 30);
     ctx.font = '12px sans-serif';
     ctx.fillStyle = '#78716c';
     const now = new Date();
     const ts = now.getFullYear() + '/' + String(now.getMonth()+1).padStart(2,'0') + '/' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-    ctx.fillText('下載時間: ' + ts + '  |  ' + (isExercise ? '運動模式' : '靜息模式') + '  |  資料長度: ' + totalSeconds.toFixed(1) + ' 秒  |  取樣點數: ' + points.length, pad.left, 48);
+    ctx.fillText(
+        t('ecg.downloadAt') + ': ' + ts +
+        '  |  ' + (isExercise ? t('ecg.exerciseMode') : t('ecg.restMode')) +
+        '  |  ' + t('ecg.dataLength') + ': ' + totalSeconds.toFixed(1) + ' ' + t('ecg.seconds') +
+        '  |  ' + t('ecg.sampleCount') + ': ' + points.length,
+        pad.left,
+        48
+    );
 
     // Download
     const link = document.createElement('a');

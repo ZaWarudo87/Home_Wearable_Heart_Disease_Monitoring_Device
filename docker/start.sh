@@ -12,28 +12,13 @@ echo -e "${BLUE}  Home Wearable Heart Disease Monitoring Device - Backend Servic
 echo -e "${BLUE}===================================================================${NC}"
 echo ""
 
-echo -e "${YELLOW}[1/3] Starting Flask backend service...${NC}"
-python backend_main.py &
-BACKEND_PID=$!
-sleep 3
-
-if kill -0 $BACKEND_PID 2>/dev/null; then
-    echo -e "${GREEN}✓ Backend service started (PID: $BACKEND_PID)${NC}"
-    echo -e "${GREEN}  Local port: http://localhost:39244${NC}"
-else
-    echo -e "${RED}✗ Backend service failed to start${NC}"
-    exit 1
-fi
-
-echo ""
-
-echo -e "${YELLOW}[2/3] Starting Cloudflare Tunnel...${NC}"
+echo -e "${YELLOW}[1/3] Starting Cloudflare Tunnel...${NC}"
 cloudflared tunnel --url http://localhost:39244 --logfile /tmp/cloudflared.log &
 TUNNEL_PID=$!
 sleep 8
 
 echo ""
-echo -e "${YELLOW}[3/3] Retrieving Cloudflare Tunnel URL...${NC}"
+echo -e "${YELLOW}[2/3] Retrieving Cloudflare Tunnel URL...${NC}"
 
 TUNNEL_URL=""
 for i in {1..15}; do
@@ -47,6 +32,22 @@ for i in {1..15}; do
     echo -e "  Attempt $i/15..."
     sleep 2
 done
+
+export TUNNEL_URL
+
+echo ""
+echo -e "${YELLOW}[3/3] Starting Flask backend service...${NC}"
+python backend/backend_main.py &
+BACKEND_PID=$!
+sleep 3
+
+if kill -0 $BACKEND_PID 2>/dev/null; then
+    echo -e "${GREEN}✓ Backend service started (PID: $BACKEND_PID)${NC}"
+    echo -e "${GREEN}  Local port: http://localhost:39244${NC}"
+else
+    echo -e "${RED}✗ Backend service failed to start${NC}"
+    exit 1
+fi
 
 echo ""
 echo -e "${BLUE}========================================${NC}"
@@ -66,7 +67,7 @@ else
 fi
 
 echo -e "${GREEN}🔧 Local URL:${NC}"
-echo -e "${YELLOW}   http://localhost:5001${NC}"
+echo -e "${YELLOW}   http://localhost:39244${NC}"
 echo ""
 echo -e "${BLUE}========================================${NC}"
 echo -e "${GREEN}Note:${NC}"

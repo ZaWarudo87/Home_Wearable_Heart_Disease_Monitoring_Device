@@ -17,8 +17,8 @@ from simple_websocket import Server
 
 import database
 import ecg_wifi
-import gemini
-import login
+import taide
+import login as login_service
 import pseudo_data
 import result_data
 
@@ -35,10 +35,9 @@ database.init_db(app)
 
 ecg_wifi.flask_app = app
 
-# --- Security Headers for Google Sign-In ---
+# --- Security Headers ---
 @app.after_request
 def add_security_headers(response):
-    # Allow popups for Google Sign-In
     response.headers['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups'
     response.headers['Cross-Origin-Embedder-Policy'] = 'unsafe-none'
     return response
@@ -54,30 +53,48 @@ def serve_frontend():
     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
     return send_from_directory(frontend_dir, 'style.css')
 
-@app.route('/script.js', methods=['GET'])
-def serve_script():
+@app.route('/js/<path:filename>', methods=['GET'])
+def serve_frontend_js(filename):
     frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
-    return send_from_directory(frontend_dir, 'script.js')
+    return send_from_directory(os.path.join(frontend_dir, 'js'), filename)
+
+@app.route('/favicon.ico', methods=['GET'])
+def serve_favicon():
+    frontend_dir = os.path.abspath(os.path.join(basedir, '..', 'frontend'))
+    return send_from_directory(frontend_dir, 'favicon.ico')
+
+@app.route('/api/cf_url', methods=['GET'])
+def get_cf_url():
+    cf_url = os.getenv('TUNNEL_URL', 'http://localhost:39244')
+    return jsonify({"cf_url": cf_url})
 
 # --- Authentication Endpoints ---
-@app.route('/api/auth/google', methods=['POST'])
-def auth_google():
-    data = request.json
-    google_token = data.get('google_token')
-    
-    if not google_token:
-        abort(400, 'Missing google_token')
-    print(f"Received Google Token: {google_token}...")
-    return jsonify(login.login(google_token))
-
-@app.route('/api/auth/me', methods=['GET'])
-def auth_me():
-    user_data = login.check_auth(request)
+@app.route('/api/login', methods=['POST'])
+def login_route():
+    user_data = login_service.check_login(request)
 
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
-        
+
+    return jsonify({
+        "is_new_user": user_data["is_new_user"],
+        "token": user_data["token"],
+        "user": {
+            "name": user_data["name"],
+            "token": user_data["token"]
+        }
+    })
+
+
+@app.route('/api/v1/auth/me', methods=['GET'])
+def auth_me():
+    user_data = login_service.check_auth(request)
+
+    if "error" in user_data:
+        status_code, message = user_data["error"]
+        abort(status_code, message)
+
     return jsonify({
         "is_new_user": not user_data["profile_completed"],
         "user": {
@@ -89,20 +106,19 @@ def auth_me():
 # --- User Profile and Health Data ---
 @app.route('/api/v1/user/profile', methods=['POST'])
 def create_user_profile():
-    user_data = login.check_auth(request)
+    user_data = login_service.check_auth(request)
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
     data = request.json
-    
-    required_fields = ['sex', 'age', 'chest_pain_type', 'exercise_angina', 'resting_ecg']
+
+    required_fields = ['sex', 'chest_pain_type', 'exercise_angina', 'resting_ecg']
     for field in required_fields:
         if field not in data:
             abort(400, f'Missing required field: {field}')
-    
+
     profile_data = {
         "sex": data["sex"],
-        "age": data["age"],
         "chest_pain_type": data["chest_pain_type"],
         "exercise_angina": data["exercise_angina"],
         "resting_ecg": data["resting_ecg"]
@@ -111,32 +127,32 @@ def create_user_profile():
 
 @app.route('/api/v1/user/health-data', methods=['GET', 'POST'])
 def health_data():
-    user_data = login.check_auth(request)
+    user_data = login_service.check_auth(request)
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
-    
+
     if request.method == 'POST':
         data = request.json
         required_fields = ['resting_bp', 'cholesterol', 'fasting_bs']
         for field in required_fields:
             if field not in data:
                 abort(400, f'Missing required field: {field}')
-        
+
         result = database.add_health_record(user_data["id"], {
             "resting_bp": data["resting_bp"],
             "cholesterol": data["cholesterol"],
             "fasting_bs": data["fasting_bs"]
         })
         return jsonify(result)
-    
+
     # GET request
     return jsonify(database.get_health_data(user_data["id"]))
 
 # --- Health Data API ---
 @app.route('/api/v1/health/summary', methods=['GET'])
 def get_health_summary():
-    user_data = login.check_auth(request)
+    user_data = login_service.check_auth(request)
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
@@ -144,7 +160,7 @@ def get_health_summary():
 
 @app.route('/api/v1/health/risk', methods=['GET'])
 def get_health_risk():
-    user_data = login.check_auth(request)
+    user_data = login_service.check_auth(request)
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
@@ -155,12 +171,12 @@ def get_health_risk():
 
 @app.route('/api/v1/charts/bp', methods=['GET'])
 def get_chart_bp():
-    user_data = login.check_auth(request)
+    user_data = login_service.check_auth(request)
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
     period = request.args.get('period', '7d')
-    
+
     # To prevent others play our API
     if period == '7d':
         data = database.get_chart_data(user_data["id"], 7, 'bp') #database
@@ -170,13 +186,13 @@ def get_chart_bp():
 
 @app.route('/api/v1/charts/hr', methods=['GET'])
 def get_chart_hr():
-    user_data = login.check_auth(request)
+    user_data = login_service.check_auth(request)
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
     interval = request.args.get('interval')
     period = request.args.get('period')
-    
+
     if period == '1h':
         data = database.get_chart_data(user_data["id"], 60, 'hr') #database
     elif period == '6h':
@@ -223,12 +239,12 @@ def signal_handler(sig, frame):
 @sock.route('/ws/ecg/stream')
 def ecg_stream(ws: Server):
     token = request.args.get('token')
-    if not login.check_auth_ws(token):
+    if not login_service.check_auth_ws(token):
         print(f"WebSocket connection rejected: Invalid token '{token}'")
         ws.close()
         return
     print(f"WebSocket connection accepted for token: {token}")
-    
+
     active_websockets.append(ws)
     thread = threading.Thread(target=send_ecg_data, args=(ws,))
     thread.daemon = True
@@ -242,11 +258,11 @@ def ecg_stream(ws: Server):
     finally:
         print("Client disconnected.")
 
-# --- Health Advice by Gemini ---
+# --- Health Advice by Taide ---
 @app.route('/api/v1/health/advice', methods=['POST'])
 def post_health_advice():
     # Check authentication
-    user_data = login.check_auth(request)
+    user_data = login_service.check_auth(request)
     if "error" in user_data:
         status_code, message = user_data["error"]
         abort(status_code, message)
@@ -254,6 +270,7 @@ def post_health_advice():
     # Read request JSON body
     data = request.json or {}
     overview = data.get("overview")
+    language = data.get("language", "ZH")
     if not isinstance(overview, dict):
         abort(400, "Missing or invalid 'overview' (must be an object)")
 
@@ -263,7 +280,7 @@ def post_health_advice():
         # "risk": data.get("risk"),
     }
 
-    advice_text = gemini.health_summary(payload)
+    advice_text = taide.health_summary(payload, lang=language)
     return jsonify({"ai_summary": advice_text})
 
 # --- Main ---

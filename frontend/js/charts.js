@@ -11,7 +11,7 @@ async function initializeBPChart(period) {
             data: {
                 labels: data.labels,
                 datasets: [{
-                    label: '靜息血壓',
+                    label: t('chart.bp'),
                     data: data.values,
                     borderColor: config.accent_color || '#ef4444',
                     backgroundColor: (config.accent_color || '#ef4444') + '20',
@@ -58,7 +58,7 @@ async function initializeHR1minChart(period) {
             data: {
                 labels: data.labels,
                 datasets: [{
-                    label: '平均心率',
+                    label: t('chart.hrAvg'),
                     data: data.values,
                     borderColor: config.primary_color || '#4f46e5',
                     tension: 0.4,
@@ -92,7 +92,7 @@ async function initializeHR30minChart(period) {
             data: {
                 labels: data.labels,
                 datasets: [{
-                    label: '平均心率',
+                    label: t('chart.hrAvg'),
                     data: data.values,
                     borderColor: config.primary_color || '#4f46e5',
                     tension: 0.4,
@@ -128,3 +128,24 @@ async function updateHRChart(chartName, interval, period) {
         console.error(`Failed to update ${chartName}:`, error);
     }
 }
+
+function updateChartsForLanguage() {
+    if (charts.bpChart && charts.bpChart.data.datasets[0]) {
+        charts.bpChart.data.datasets[0].label = t('chart.bp');
+        charts.bpChart.update('none');
+    }
+    if (charts.hr1minChart && charts.hr1minChart.data.datasets[0]) {
+        charts.hr1minChart.data.datasets[0].label = t('chart.hrAvg');
+        charts.hr1minChart.update('none');
+    }
+    if (charts.hr30minChart && charts.hr30minChart.data.datasets[0]) {
+        charts.hr30minChart.data.datasets[0].label = t('chart.hrAvg');
+        charts.hr30minChart.update('none');
+    }
+    if (charts.ecgChart && charts.ecgChart.options.scales && charts.ecgChart.options.scales.x && charts.ecgChart.options.scales.x.title) {
+        charts.ecgChart.options.scales.x.title.text = t('ecg.xAxisTime');
+        charts.ecgChart.update('none');
+    }
+}
+
+window.updateChartsForLanguage = updateChartsForLanguage;
