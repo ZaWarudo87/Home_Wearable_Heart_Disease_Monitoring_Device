@@ -34,8 +34,6 @@ Regarding atrial fibrillation (AF) detection, the proposed system is capable of 
 
 Furthermore, the system is specifically designed for wearable, continuous operation and supports ECG acquisition under both resting and exercise conditions. In contrast, many existing commercial devices rely on finger-contact measurements and are therefore limited to short-term, resting-state recordings.
 
-// taide
-
 However, our proposed system still has its limitations: our system still only supports single-lead ECG and might not be representitive enough for cardiovascular disease (We've planned to expand to multi-lead ECG in the future to increase the amount of information for risk assessment). Also, our system still relies on gel-electrode contact for ECG measurement.
 #figure(
   table(
@@ -70,7 +68,8 @@ Moreover, owing to its low-cost implementation and edge-based architecture, the 
 
 =  Methodology and Implementation
 == System Overview
-　　本作品硬體架構由 AD8232 ECG 感測模組、ESP32 與 Raspberry Pi 3B 組成。AD8232 負責單導程 ECG 訊號擷取，ESP32 負責資料取樣與傳輸，Raspberry Pi 3B 則負責訊號處理、特徵萃取、AF 偵測、風險推論與結果整合。此架構可在維持系統完整性的前提下兼顧成本、可攜性與邊緣部署需求。
+//　　本作品硬體架構由 AD8232 ECG 感測模組、ESP32 與 Raspberry Pi 3B 組成。AD8232 負責單導程 ECG 訊號擷取，ESP32 負責資料取樣與傳輸，Raspberry Pi 3B 則負責訊號處理、特徵萃取、AF 偵測、風險推論與結果整合。此架構可在維持系統完整性的前提下兼顧成本、可攜性與邊緣部署需求。
+#h(2em) The system consists of the following key components: AD8232 ECG module, ESP32, and Raspberry Pi 3B. AD8232 is responsible for single-lead ECG signal acquisition, ESP32 for data sampling and transmission, and Raspberry Pi 3B for signal processing, feature extraction, AF detection, risk inference, and result integration. This architecture can meet the cost, portability, and edge deployment requirements.
 
 #figure(
   // figures.module_overview,
@@ -78,18 +77,27 @@ Moreover, owing to its low-cost implementation and edge-based architecture, the 
   caption: [作品模組全覽圖]
 ) <module_overview>
 
+/*
 　　而軟體流程的部分可分為四個主要模組：
 + 訊號處理：基於 Pan-Tompkins++ 演算法實作 R-peak 偵測，並加入 ST segment 相關分析 @imtiaz2024pan。
 + 特徵萃取：由 R-peak 計算 MaxHR、Oldpeak、ST_Slope、RestingECG 等特徵，提供風險評估模型預測。
 + AF 偵測：以 RR interval 為基礎，使用 RdR map 與 non-empty cell 計數進行判斷。
 + 風險評估：以 CatBoost 為核心，根據使用者輸入資料是否完整，自動切換模型進行預測。
+*/
+#h(2em) The software pipeline could primarily be divided into four major modules:
++ Signal processing: R-peak detection based on Pan-Tompkins++ algorithm, followed by ST segment segmentation. @imtiaz2024pan
++ Feature extraction: Calculate MaxHR, Oldpeak, ST_Slope, and RestingECG features based on R-peak, followed by risk assessment model prediction.
++ AF detection: Determine AF episodes based on RR intervals using RdR map and non-empty cell count. 
++ Risk assessment: Utilize CatBoost as the main model, automatically switching between models based on user input data completeness.
 
 #figure(
   image("pics/data_flow.png"),
   caption: [Data flow of the system]
 ) <system_flow>
 
-　　在模型部署方面，本作品保留兩組 CatBoost 模型。8-feature 模型作為部署版本，適用於僅有基本資料與 ECG 特徵的情況；10-feature 模型則於使用者同時提供 Cholesterol 與 FastingBS 等額外健康資料時啟用，以獲得較高辨識效能。兩組模型大小約 650KB 等級，可於邊緣裝置進行推論。
+//在模型部署方面，本作品保留兩組 CatBoost 模型。8-feature 模型作為部署版本，適用於僅有基本資料與 ECG 特徵的情況；10-feature 模型則於使用者同時提供 Cholesterol 與 FastingBS 等額外健康資料時啟用，以獲得較高辨識效能。兩組模型大小約 650KB 等級，可於邊緣裝置進行推論。
+#h(2em) The two CatBoost models deployed in this study are retained. The 8-feature model is deployed for situations where only basic data and ECG features are available; the 10-feature model is enabled when users provide additional health data such as Cholesterol and FastingBS, resulting in higher accuracy.
+The two models are approximately 650KB in size, and can be inferred on edge devices.
 == Cardiovascular Risk Prediction
 
 === Dataset and Problem Setup
