@@ -5,6 +5,8 @@ ARG TARGETARCH
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
+    iproute2 \
+    iputils-ping\
     libavahi-client3 \
     libavahi-common3 \
     net-tools \

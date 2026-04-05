@@ -1,16 +1,10 @@
 services:
   backend:
     container_name: heart-monitor-backend
+    network_mode: "host" 
     environment:
       - PYTHONUNBUFFERED=1
-      - ESP32_CANDIDATES=heart-monitor-esp32.local,host.docker.internal
     image: ghcr.io/zawarudo87/home_wearable_heart_disease_monitoring_device:latest
-    networks:
-      - heart-monitor-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    ports:
-      - "39244:39244"
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs

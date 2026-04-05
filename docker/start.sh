@@ -33,6 +33,8 @@ for i in {1..15}; do
     sleep 2
 done
 
+export TUNNEL_URL
+
 echo ""
 echo -e "${YELLOW}[3/3] Starting Flask backend service...${NC}"
 python backend/backend_main.py &
