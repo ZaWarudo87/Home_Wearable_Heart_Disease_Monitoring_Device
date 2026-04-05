@@ -18,20 +18,20 @@ Therefore, we propose an integrated framework that enables long-term ECG monitor
 
 = System Design
 == Key Innovations
-　　本作品之設計理念不僅在於提供 ECG 量測，而是希望將原始心電訊號即時轉換為可解讀之健康風險資訊。考量日常穿戴裝置需具備低延遲、低功耗、隱私性與可攜性，本作品採用邊緣端即時分析架構，避免大量生理資料長時間上傳雲端所帶來之傳輸負擔與個資風險。
+#h(2em)The proposed system introduces a unified framework for continuous ECG monitoring and analysis, integrating long-term data acquisition, real-time signal processing, and edge-based inference. Its key features are summarized as follows:
+- *Interpretable physiological indicators*: The system incorporates cardiovascular risk assessment derived from ECG features, transforming raw signals into meaningful and interpretable outputs accessible to non-specialist users. In addition, it supports the export of ECG signal plots to facilitate subsequent review by healthcare professionals.
+- *Long-term continuous monitoring*: Supports sustained ECG acquisition beyond the short-duration measurements of typical wearable devices.
+- *Comprehensive AF detection*: Capable of detecting both paroxysmal and persistent AF.
+- *Multi-condition ECG acquisition*: Enables ECG monitoring under both resting and exercise conditions, supporting more realistic usage scenarios.
+The system is implemented using an edge-based architecture to achieve real-time inference with low latency and enhanced data privacy.
 
-　　相較於現有產品，本作品的差異化重點如下：
-+ 支援較長時間 ECG 監測，而非僅限於短時間量測或單次操作。
-+ 同時提供心臟疾病風險評估與心房顫動 (AF) 偵測，功能面向較完整。
-+ 整合靜態與運動狀態下之 ECG 特徵，使風險分析更貼近日常情境。
-+ 提供 ECG 圖形匯出功能，便於異常發生時保存量測紀錄並作為就醫參考。
-+ 採用輕量化自訓練 AI 模型，可於邊緣裝置執行，不需大型伺服器支援。
-
-　　本作品之新穎性不在於單一感測元件或單一演算法，而在於完整的跨域整合：從生理訊號擷取、訊號處理、邊緣 AI 推論、風險資訊視覺化，到就醫輔助資料匯出，形成具實務價值的整體解決方案。
 == Comparison with Existing Solutions
-Our system enables long-term, continuous ECG monitoring, representing a substantial advancement over typical commercial wearable devices that are generally restricted to short-duration recordings.
+#h(2em)Our system enables long-term, continuous ECG monitoring, representing a substantial advancement over typical commercial wearable devices that are generally restricted to short-duration recordings.
+
 In addition, the system incorporates cardiovascular risk assessment, thereby enhancing the interpretability and clinical relevance of the acquired ECG signals.
+
 Regarding atrial fibrillation (AF) detection, the proposed system is capable of identifying both paroxysmal and persistent AF, whereas many commercial devices primarily focus on heart rate monitoring or are limited to detecting persistent AF.
+
 Furthermore, the system is specifically designed for wearable, continuous operation and supports ECG acquisition under both resting and exercise conditions. In contrast, many existing commercial devices rely on finger-contact measurements and are therefore limited to short-term, resting-state recordings.
 
 // taide
@@ -64,11 +64,9 @@ However, our proposed system still has its limitations: our system still only su
 === Smartwatch ECG
 == Potential Applications
 
-　　本系統對應的潛在市場包括高齡健康管理、心血管疾病患者長期追蹤、遠距照護、居家術後觀察與一般民眾之個人健康監測。其應用價值主要體現在以下幾方面：
-+ 預防醫學：協助使用者更早察覺異常節律或心血管風險。
-+ 遠距照護：提供結構化 ECG 特徵與風險資訊，減少單純口述症狀之不確定性。
-+ 就醫輔助：異常時可匯出 ECG 圖形，供醫師觀察判讀。
-+ 邊緣部署：不需高階雲端算力即可完成分析，具低成本落地潛力。
+#h(2em)For general users, the system provides interpretable insights into cardiovascular health status and potential risk factors, enabling timely preventive actions and early intervention. For healthcare professionals, it functions as an effective remote monitoring tool, supporting continuous observation of ECG signals and facilitating the prompt identification of clinically significant abnormalities or temporal changes.
+
+Moreover, owing to its low-cost implementation and edge-based architecture, the system can be readily deployed across diverse settings, including community healthcare facilities and resource-constrained environments, thereby improving the accessibility and scalability of cardiovascular disease screening and management.
 
 =  Methodology and Implementation
 == System Overview
@@ -87,8 +85,8 @@ However, our proposed system still has its limitations: our system still only su
 + 風險評估：以 CatBoost 為核心，根據使用者輸入資料是否完整，自動切換模型進行預測。
 
 #figure(
-  image("pics/system_flow.png"),
-  caption: [系統運作流程圖]
+  image("pics/data_flow.png"),
+  caption: [Data flow of the system]
 ) <system_flow>
 
 　　在模型部署方面，本作品保留兩組 CatBoost 模型。8-feature 模型作為部署版本，適用於僅有基本資料與 ECG 特徵的情況；10-feature 模型則於使用者同時提供 Cholesterol 與 FastingBS 等額外健康資料時啟用，以獲得較高辨識效能。兩組模型大小約 650KB 等級，可於邊緣裝置進行推論。
@@ -99,28 +97,30 @@ However, our proposed system still has its limitations: our system still only su
 
 #figure(
   table(
-    columns: (auto, 2fr, 2fr),
-    align: (center, left, left),
+    columns: (auto, 1fr),
+    align: (left, left),
     stroke: 0.5pt,
-    fill: (_, y) => if y == 0 { luma(230) } else { none },
+    fill: (_, row) => if row == 0 { luma(230) } else { none },
 
-    [Variable], [Description], [Values / Units],
+    [*Feature*], [*Description*],
 
-    [Age], [age of the patient], [years],
-    [Sex], [sex of the patient], [M: Male, F: Female],
-    [ChestPainType], [chest pain type], [TA: Typical Angina, ATA: Atypical Angina, NAP: Non-Anginal Pain, ASY: Asymptomatic],
-    [RestingBP], [resting blood pressure], [mm Hg],
-    [Cholesterol], [serum cholesterol], [mg/dl],
-    [FastingBS], [fasting blood sugar], [1: > 120 mg/dl, 0: otherwise],
-    [RestingECG], [resting electrocardiogram results], [Normal, ST: ST-T abnormality, LVH: left ventricular hypertrophy],
-    [MaxHR], [maximum heart rate achieved], [60–202],
-    [ExerciseAngina], [exegion induced by exercise], [numeric],
-    [ST_Slope], [slope of the peak exercise ST segment], [Up, Flat, Down],
-    [HeartDisease], [output class], [1: heart disease, 0: normal],
+    [Age], [Age of the patient (years)],
+    [Sex], [Sex of the patient (M: Male, F: Female)],
+    [ChestPainType], [Chest pain type (TA: Typical Angina, ATA: Atypical Angina, NAP: Non-Anginal Pain, ASY: Asymptomatic)],
+    [RestingBP], [Resting blood pressure (mm Hg)],
+    [Cholesterol], [Serum cholesterol (mm/dl)],
+    [FastingBS], [Fasting blood sugar (1: >120 mg/dl, 0: otherwise)],
+    [RestingECG], [Resting electrocardiogram results (Normal, ST: ST-T abnormality, LVH: left ventricular hypertrophy)],
+    [MaxHR], [Maximum heart rate achieved (60–202)],
+    [ExerciseAngina], [Exercise-induced angina (Y: Yes, N: No)],
+    [Oldpeak], [ST depression value (numeric)],
+    [ST_Slope], [Slope of peak exercise ST segment (Up, Flat, Down)],
+    [HeartDisease], [Output class (1: Heart disease, 0: Normal)],
   ),
   caption: [Summary of Input Features for Heart Disease Dataset],
 )<tab:features>
 
+Among these 14 features, we finally selected 10 features for the deployed model since the remaining 4 features (Cholesterol, FastingBS, RestingBP, ExerciseAngina) are not directly measurable by our device and require user input. The 10 features used in the deployed
 
 === Preprocessing and Filters
 
@@ -132,7 +132,7 @@ To address this, we designed an independent 0.5-35 Hz filtering interval specifi
 
 Our processing pipeline primarily extracts four key features: Maximum Heart Rate, Oldpeak, ST Slope, and Resting Electrocardiogram (RestingECG). The R-peak measured by `Pan-Tompkins++` @imtiaz2024pan serves as the reference point for calculating all subsequent features (like heart rate and segment windows). The extraction mechanisms, challenges, and optimization processes are detailed below.
 
-- *Maximum Heart Rate*
+==== *Maximum Heart Rate*
 
 #h(2em) *Definition*: The maximum heart rate achieved during the measurement period, typically yielding a numeric value between 60 and 202.
 
@@ -309,50 +309,50 @@ For the core language model, we selected *Gemma-3-TAIDE-12b-Chat*, a robust 12-b
 
 Due to the substantial computational requirements of running a 12B parameter model, we deployed the language model as a dedicated server hosted on a Spark DGX system. This backend server handles all the heavy AI inference tasks. When a user requests health insights on the frontend application, the system makes a call to the server, retrieving the AI-generated responses efficiently. This client-server architecture ensures that the frontend remains highly responsive and accessible, without being burdened by the intensive processing demands of the large language model.
 
+== System Deployment, Cost Analysis, and Feasibility
+#h(2em)To evaluate the practical feasibility of the proposed system, we analyze the hardware cost structure and deployment requirements.
 
-= 量化成果與效能驗證
-　　本作品目前主要量化成果如下：
-- 我們的風險預測 AI 模型於公開心臟疾病資料集上可達約 96.6% accuracy 與 97.1% recall。
-- AF 偵測：在 MIT-BIH atrial fibrillation database 的 128-beat 驗證設定下達約 95.7% 準確率。
-- 模型大小：約 650KB 等級，符合邊緣端部署需求。
-
-= 成品展示
-#figure(
-  image("pics/frontend.png"),
-  caption: [前端介面]
-) <frontend>
-
-= 與現有技術或市售產品之比較
-　　相較於多數市售穿戴式裝置，本作品的優勢並非單一規格領先，而在於整體功能串接的完整性。重點差異如下：
-+ 可進行較長時間 ECG 監測，而非僅限於短時間操作。
-+ 提供 ECG 特徵分析、心臟疾病風險評估與心房顫動 (AF) 偵測，而不只是心率顯示。
-+ 可於異常當下匯出 ECG 圖形，作為後續就醫輔助。
-+ 採用邊緣端即時分析架構，兼顧低延遲與較高資料隱私性。
-
+The system consists of the following key components:
 #figure(
   table(
-    columns: (auto, 1fr, 1fr),
-    align: (center, center, center),
+    columns: (2.5fr, 3.5fr, 1.5fr),
+    align: (left, left, right),
     stroke: 0.5pt,
-    fill: (_, row) => if row == 0 { luma(230) } else { none },
-    [*比較項目*], [*本作品*], [*多數市售穿戴式裝置*],
-    [ECG 量測型態], [可支援較長時間連續監測], [多以短時間主動量測為主],
-    [分析內容], [ECG 特徵分析+風險評估+AF 偵測], [多以心率顯示或單一事件提醒為主],
-    [使用方式], [穿戴式連續量測], [需手指持續接觸電極],
-    [量測情境], [支援靜態/運動狀態], [僅支援靜態狀態],
-    [運算架構], [邊緣端即時推論，降低傳輸與隱私風險], [多依產品設計而異，未必具完整在地推論能力]
+    fill: (_, y) => if y == 0 { luma(230) } else { none },
+
+    [*Component*], [*Function*], [*Cost (TWD)*],
+
+    [AD8232 ECG module], [ECG signal acquisition], [~200],
+    [ESP32], [Data acquisition and transmission], [~150],
+    [Raspberry Pi 3B], [Edge processing], [~1500],
+    [Power module & peripherals], [Battery and supporting components], [~100],
+    [*Total*], [], [*< 2000*],
   ),
-  caption: [與市售產品之功能比較]
-) <comparison>
+  caption: [Hardware Cost Breakdown of the Proposed System],
+)<tab:cost>
 
-= 場域應用與使用情境
-　　本作品適合應用於居家健康管理、高齡照護、慢性病患者追蹤與術後健康觀察等場域。對一般使用者而言，系統可作為較長時間的日常心電監測與早期異常提醒工具；對照護者或醫療輔助人員而言，則可提供更具結構性之 ECG 特徵與風險資訊，作為後續觀察、追蹤或就醫判斷的參考。
+#h(2em)The total system cost is maintained below 2000 TWD, which is significantly lower than most commercial wearable ECG devices.
+From a system perspective, the proposed design achieves a favorable trade-off between computational capability, model complexity, and deployment cost. The use of lightweight machine learning models (approximately 650 KB) enables real-time inference on edge devices without requiring specialized hardware acceleration.
+Compared to smartwatch-based ECG systems, which typically rely on proprietary hardware ecosystems and external processing pipelines, the proposed system provides a transparent and cost-efficient architecture with full control over signal processing and inference.
+These results indicate that the proposed system is both technically effective and economically viable for large-scale deployment in home healthcare and remote monitoring scenarios.
 
-在實際應用情境中，使用者可於日常生活中佩戴裝置進行 ECG 量測，系統於邊緣端即時完成訊號處理、特徵萃取與風險分析，並透過介面提供心率、ECG 波形、AF 偵測結果與心臟疾病風險提示。當系統偵測到異常節律或較高風險時，可提示使用者進一步觀察或及早就醫，提升健康管理之主動性與即時性。
+== Prototype Implementation and System Demonstration
+#figure(
+  image("pics/wearing_config.png", width: 70%),
+  caption: [Wearable ECG System Configuration and Electrode Placement],
+) <wearing_config>
+#figure(
+  image("pics/hardware.png", width: 40%),
+  caption: [Hardware Implementation of the Wearable ECG Monitoring System],
+) <hardware>
 
-此外，本作品亦提供 ECG 圖形匯出功能。當使用者於日常生活中感到不適，或系統偵測到異常節律與較高風險時，可即時保存並匯出當下之心電圖圖形與相關資訊，於後續就醫時提供醫師作為觀察與判讀之輔助參考，提升日常監測資料在實際醫療情境中的應用價值。
+#figure(
+  image("pics/frontend.png"),
+  caption: [Frontend interface]
+) <frontend>
 
-相較於僅能短時間量測的市售裝置，本作品更強調「連續監測 + 特徵分析 + 風險資訊」的整合能力；低成本、可攜性與非醫療場域使用之便利性。因此，本作品並非取代臨床診斷，而是作為前端輔助工具，協助使用者更早辨識心臟健康風險，並提升日常健康管理效率。
+
+
 
 = 成本、可行性與整合難度
 　　本作品採用市面可取得之模組進行整合，具備原型實作上的可行性。以現行原型估算，主要硬體成本集中於 ECG 感測模組、微控制器、邊緣運算設備與電源模組。由於本系統採用單導程 ECG 架構與輕量化模型，不需高階 GPU 或大型伺服器，即可完成系統運作，因此具備較低導入門檻。
