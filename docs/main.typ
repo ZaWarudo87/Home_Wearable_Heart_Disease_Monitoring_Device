@@ -351,14 +351,6 @@ These results indicate that the proposed system is both technically effective an
   caption: [Frontend interface]
 ) <frontend>
 
-
-
-
-= 成本、可行性與整合難度
-　　本作品採用市面可取得之模組進行整合，具備原型實作上的可行性。以現行原型估算，主要硬體成本集中於 ECG 感測模組、微控制器、邊緣運算設備與電源模組。由於本系統採用單導程 ECG 架構與輕量化模型，不需高階 GPU 或大型伺服器，即可完成系統運作，因此具備較低導入門檻。
-
-然而，本作品的難點不在於單一硬體元件，而在於整體整合。感測器、訊號取樣、資料傳輸、邊緣運算、資料庫、前端顯示與就醫輔助匯出功能必須穩定串接，這也是本作品的重要技術價值之一。這種跨硬體、訊號處理與 AI 的整合難度，正符合跨域智慧系統競賽對整體完成度的期待。
-
 = 技術限制、風險與可信度說明
 　　為提高作品可信度，本作品亦主動說明現階段限制如下：
 + 目前主要使用單導程 ECG，與醫療級多導程系統相比，資訊量仍有限。
@@ -367,19 +359,9 @@ These results indicate that the proposed system is both technically effective an
 + LLM 健康建議若作為後續功能，僅應視為輔助性資訊，不應取代醫師診斷。
 + 本系統定位為健康管理與早期警示工具，而非醫療診斷設備。
 
-= 未來發展
-　　本作品目前已完成穿戴式 ECG 量測、邊緣端訊號分析、AF 偵測與心臟疾病風險評估等核心功能，後續可朝以下方向持續擴充與優化。
+= Conclusion and Future Work
 
-首先，在量測能力方面，可由目前單導程 ECG 擴展至更多導程或整合更多生理感測資訊，例如血氧、血壓、活動量與睡眠狀態，以提升風險評估之完整性。
-
-其次，在模型與驗證方面，未來可進一步蒐集更多真實使用情境資料，強化模型在不同族群與日常環境下之泛化能力，並提升異常事件偵測之穩定性與可信度。
-
-未來亦可朝更低功耗、更小型化與更高整合度之穿戴式系統發展，降低設備體積與使用負擔，提升長時間佩戴與實際落地之可行性。透過上述方向，本作品有機會由原型系統進一步發展為具實務應用價值之智慧健康產品。
-
-= 結論
-　　本作品「心悸寶貝」以單導程 ECG 感測、邊緣運算與輕量化 AI 為核心，建構一套可於日常生活中長時間運作之穿戴式心臟健康監測系統。相較於多數市售穿戴式裝置，本作品更強調「連續監測 + ECG 特徵分析 + 風險資訊 + ECG 匯出」的整合能力，並以具體量化結果驗證其可行性。
-
-本作品不以取代臨床診斷為目標，而是定位為醫療前端輔助工具，協助使用者進行日常健康管理、早期異常預警與後續就醫準備。
+The system can be further extended to support multi-lead ECG acquisition, thereby enriching the information available for cardiovascular risk assessment. In addition, the current wired configuration and reliance on gel-based electrodes may limit user comfort and usability. Future work may therefore investigate wireless electrode designs or dry electrode technologies to enhance wearability and support long-term use. Furthermore, the system could be integrated with cloud-based services to enable home-based diagnosis and remote monitoring, allowing users to share ECG data and risk assessment results with healthcare professionals for more comprehensive and continuous care.
 
 #bibliography(
   "works.bib",
