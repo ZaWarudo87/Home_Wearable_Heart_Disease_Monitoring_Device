@@ -1,3 +1,5 @@
+#import "@preview/subpar:0.2.2"
+
 #import "figures.typ"
 #import "template.typ"
 #show: template.init
@@ -281,7 +283,7 @@ Consequently, the final deployed model in this study evolved directly from the C
 
 #h(2em)During the early development of the AF detection module, the Coefficient of Variation (CV) test method was initially employed @tateno2001automatic. While this method is fast to implement and computationally efficient, its decision criteria are fundamentally based on a single statistic. This makes it prone to misidentifying ectopic rhythms, such as Premature Ventricular Contractions (PVCs), as AF, leading to a high false alarm rate in practical applications.
 
-To address this issue, a multi-feature integration approach proposed by Dash et al @dash2009automatic. This academic article was subsequently explored, which utilizes TPR, RMSSD, and Shannon Entropy (SE) to improve discriminatory power. As shown in the comparative results, this integrated approach achieved excellent classification results on the AFDB dataset. However, this method involves complex feature extraction and precise parameter tuning, incurring high engineering overhead and significantly longer computation times.
+To address this issue, we subsequently explored a multi-feature integration approach proposed by Dash et al. @dash2009automatic, which utilizes TPR, RMSSD, and Shannon Entropy (SE) to improve discriminatory power. As shown in the comparative results, this integrated approach achieved excellent classification performance on the AFDB dataset. However, this method involves complex feature extraction and precise parameter tuning, incurring high engineering overhead and significantly longer computation times.
 
 After a comprehensive evaluation of classification performance, false alarm control, algorithmic complexity, and maintenance costs, the RdR+NEC method @lian2011af was ultimately selected for this work. This method offers the dual advantages of simple decision rules and *extremely low computational complexity*.
 
@@ -306,9 +308,9 @@ The specific technical details and parameter settings of the RdR+NEC algorithm a
   caption: [An example of Atrial Fibrillation (AF) Detection],
 ) <af_detect>
 
-#h(2em) To confirm the algorithm's generalization capabilities, verification was conducted across multiple public datasets. As indicated in Table 3, the RdR+NEC method demonstrates highly stable and superior detection performance across diverse data distributions.
+#h(2em) To confirm the algorithm's generalization capability, verification was conducted across multiple public datasets. The RdR+NEC method demonstrates stable and strong detection performance across diverse data distributions.
 
-#text(size: 10pt)[Table 5. Performance validation results of the RdR+NEC method across public datasets]
+#text(size: 10pt)[Performance validation results of the RdR+NEC method across public datasets]
 
 
 #figure(
@@ -324,7 +326,7 @@ The specific technical details and parameter settings of the RdR+NEC algorithm a
   [AFDB], [95.70], [95.70],
   [Combined database], [95.70], [94.20],
 ),
-  caption: [Hardware Cost Breakdown of the Proposed System],
+  caption: [Performance validation across public datasets],
 )<tab:AF_compare>
 
 \* #text(size: 10pt)[NA: Sensitivity is not applicable because no true AF episodes are present.]
@@ -356,7 +358,7 @@ Due to the substantial computational requirements of running a 12B parameter mod
 #figure(
   image("pics/taide_example.png"),
   caption: [TAIDE-based health assistant response],
-)
+) <taide_example>
 
 == System Deployment, Cost Analysis, and Feasibility
 #h(2em)To evaluate the practical feasibility of the proposed system, we analyze the hardware cost structure and deployment requirements.
@@ -386,19 +388,94 @@ Compared to smartwatch-based ECG systems, which typically rely on proprietary ha
 These results indicate that the proposed system is both technically effective and economically viable for large-scale deployment in home healthcare and remote monitoring scenarios.
 
 == Prototype Implementation and System Demonstration
-#figure(
-  image("pics/wearing_config.png", width: 70%),
-  caption: [Wearable ECG System Configuration and Electrode Placement],
-) <wearing_config>
-#figure(
-  image("pics/hardware.png", width: 40%),
-  caption: [Hardware Implementation of the Wearable ECG Monitoring System],
-) <hardware>
+#h(2em) The complete system consists of a wearable sensing unit and an edge-computing backend. On the hardware side, the chest-worn configuration combines AD8232 for single-lead ECG acquisition with ESP32 for sampling and wireless transmission (@wearing_config, @hardware). On the edge side, Raspberry Pi 3B executes signal preprocessing, AF screening, cardiovascular risk inference, and database-backed service orchestration for multi-user household use.
 
-#figure(
-  image("pics/frontend.png"),
-  caption: [Frontend interface]
-) <frontend>
+#subpar.grid(
+  figure(
+    image("pics/wearing_config.png", width: 100%),
+    caption: [Wearable ECG System Configuration and Electrode Placement],
+  ),<wearing_config>,
+  figure(
+    image("pics/hardware.png", width: 70%),
+    caption: [Hardware Implementation of the Wearable ECG Monitoring System],
+  ),<hardware>,
+  columns: (1.8fr, 1fr),
+  caption: [Hardware Design and Wearable Configuration],
+  label: <wh_full>,
+)
+
+#grid(
+  columns: (1fr, 1fr), // 左邊文字，右邊圖片
+  gutter: 15pt,
+  [
+    #h(2em) In practical operation, the user first attaches the chest strap and ECG electrodes according to the predefined placement (@wearing_config). After device initialization, the measurement mode can be switched between resting and exercise conditions, enabling 24-hour ECG monitoring across daily activities rather than short static recordings. The frontend then provides real-time waveform visualization through WebSocket streaming (@frontend_ecg), allowing immediate inspection of transient symptoms. This design supports on-demand recording of symptomatic episodes, and waveform plots can be exported for clinician review during outpatient visits.
+  ],
+  [#figure(
+    image("pics/frontend/ecg.png", width: 90%),
+    caption: [Real-time ECG Waveform]
+  ) <frontend_ecg>]
+)
+
+#h(2em) The web interface is designed to support both initial onboarding and routine follow-up. At first login, users authenticate and complete personal profile and medical-history fields (@frontend_personal_info); during subsequent sessions, daily measurement forms are submitted for longitudinal tracking (@frontend_health_form). The interface also provides light and dark theme modes for improved readability under different usage conditions.
+
+For routine health interpretation, the frontend provides both trend charts and an integrated overview dashboard. Blood-pressure and heart-rate variation views are shown in @frontend_resting_bp and @frontend_heartrate, while @frontend_overview summarizes key indicators at a glance, including resting blood pressure, average heart rate, maximum heart rate, ST slope, RestingECG category, and AF-related rhythm status. Model-based cardiovascular risk scoring is presented in @frontend_risk, where the quantified risk output is continuously synchronized with newly uploaded measurements.
+
+#align(center, block(
+  width: 89%,
+  subpar.grid(
+    figure(
+      image("pics/frontend/overview.png"),
+      caption: [Overview]
+    ),<frontend_overview>,
+    figure(
+      image("pics/frontend/resting_bp.png"),
+      caption: [Resting Blood Pressure],
+    ),<frontend_resting_bp>,
+    columns: (1fr, 1fr),
+    caption: [Frontend Interface],
+    label: <frontend_a>,
+  )
+))
+
+#align(center, block(
+  width: 89%,
+  subpar.grid(
+    figure(
+      image("pics/frontend/heartrate.png"),
+      caption: [Average Heart Rate],
+    ),<frontend_heartrate>,
+    figure(
+      image("pics/frontend/risk.png"),
+      caption: [Risk Evaluation]
+    ),<frontend_risk>,
+    columns: (1fr, 1fr),
+    caption: [Frontend Interface],
+    label: <frontend_b>,
+  )
+))
+
+#align(center, block(
+  width: 89%,
+  subpar.grid(
+    figure(
+      image("pics/frontend/health_form.png"),
+      caption: [Daily Health Measurement],
+    ),<frontend_health_form>,
+    figure(
+      image("pics/frontend/personal_info.png"),
+      caption: [First-time Profile Registration],
+    ),<frontend_personal_info>,
+    columns: (1fr, 1fr),
+    caption: [Frontend Interface],
+    label: <frontend_c>,
+  )
+))
+
+#h(2em) To improve usability for non-specialist users, the system additionally provides AI-assisted health guidance in the interface. Based on the latest physiological indicators and risk outputs, the LLM module returns concise, non-diagnostic recommendations (@taide_example), helping users understand their condition and decide whether further medical consultation is needed.
+
+Together, these results confirm that the proposed system is not only algorithmically effective but also practically deployable as a complete home-care monitoring workflow.
+
+
 /*
 = 技術限制、風險與可信度說明
 　　為提高作品可信度，本作品亦主動說明現階段限制如下：
@@ -411,7 +488,7 @@ These results indicate that the proposed system is both technically effective an
 
 = Research Outcomes and Benefits
 == Enhancement of Early Detection Capability of Cardiovascular Abnormalities
-#h(2em)The proposed system significantly enhances the early detection capability of cardiovascular abnormalities by enabling continuous, long-term ECG monitoring.
+#h(2em)The proposed system significantly enhances early detection capability for cardiovascular abnormalities by enabling continuous, long-term ECG monitoring.
 
 Conventional wearable ECG systems are typically limited to short-duration or user-triggered recordings, which may fail to capture transient or intermittent cardiac events, such as paroxysmal AF. This limitation reduces the likelihood of early-stage detection, particularly for conditions that exhibit irregular temporal patterns.
 
@@ -439,7 +516,7 @@ The selected RdR+NEC demonstrates that the edge-based pipeline can balance early
 == From Raw ECG Signals to Interpretable Risk Representation
 #h(2em)We introduce a unified feature extraction framework and a feature-based predictive model that map raw ECG signals to clinically relevant indicators for cardiovascular disease assessment. This representation enables the model to operate in a semantically meaningful feature space, rather than directly on high-dimensional raw signals. Furthermore, the feature-based approach reduces computational complexity, resulting in low overhead and enabling real-time execution on edge devices.
 
-The final deployed 10-feature CatBoost model achieved 96.57% accuracy and 97.06% recall on the holdout test set after fine-tuning and threshold tuning, and the precision, F1-score, and ROC-AUC are also showing that the extracted ECG features are sufficient for an interpretable and accurate risk model. Results on the holdout test set clearly illustrate the model's evolution trajectory: starting from the initial CatBoost baseline model (accuracy 85.87%, recall 85.29%), moving through fine-tuning, and culminating in threshold tuning.
+The final deployed 10-feature CatBoost model achieved 96.57% accuracy and 97.06% recall on the holdout test set after fine-tuning and threshold tuning. Precision, F1-score, and ROC-AUC also indicate that the extracted ECG features are sufficient for an interpretable and accurate risk model. Results on the holdout test set clearly illustrate the model's evolution trajectory, starting from the initial CatBoost baseline model (accuracy 85.87%, recall 85.29%), moving through fine-tuning, and culminating in threshold tuning.
 
 #set text(size:8pt)
 #figure(
@@ -491,7 +568,7 @@ These results indicate that the proposed backend service is sufficiently lightwe
 Algorithmically, the system successfully translates raw ECG signals into interpretable clinical indicators. The implementation of a *dual-model CatBoost routing mechanism ensures robust cardiovascular disease risk prediction (achieving up to 96.57% accuracy)* even with incomplete user data. Concurrently, the integration of the computationally efficient RdR+NEC algorithm *enables the real-time detection of both paroxysmal and persistent atrial fibrillation* with minimal computational overhead on edge devices. Complemented by a *TAIDE-based large language model*, the system empowers users with personalized and intuitive health insights. Overall, this framework offers an accessible, scalable, and privacy-preserving solution for proactive cardiovascular screening in home healthcare settings.
 
 == Future work
-#h(2em)However, our proposed system still has its limitations: our system still only supports single-lead ECG and might not be representative enough for cardiovascular disease (We've planned to *expand to multi-lead ECG* in the future to increase the amount of information for risk assessment). Also, our system still relies on gel-electrode contact for ECG measurement.
+#h(2em)However, the proposed system still has several limitations. It currently supports only single-lead ECG, which may not be sufficient for all cardiovascular conditions. We plan to *expand to multi-lead ECG* in future versions to increase the information available for risk assessment. In addition, the current implementation still relies on gel-electrode contact for ECG measurement.
 
 The system can be further extended to support multi-lead ECG acquisition, thereby enriching the information available for cardiovascular risk assessment. In addition, the current wired configuration and reliance on gel-based electrodes may limit user comfort and usability. Future work may therefore *investigate wireless electrode designs or dry electrode technologies* to enhance wearability and support long-term use. Furthermore, the system could be *integrated with cloud-based services to enable home-based diagnosis and remote monitoring*, allowing users to share ECG data and risk assessment results with healthcare professionals for more comprehensive and continuous care.
 
