@@ -7,12 +7,12 @@ const char* password = "yourpwd";
 WiFiServer server(80);
 
 // ECG Pins
-const int LO_PLUS    = 14;
-const int LO_MINUS   = 27;
+const int LO_PLUS    = 27;
+const int LO_MINUS   = 26;
 const int ECG_ANALOG = 34;
 
 // Button Pins and Debounce Variables
-const int buttonPin = 12;     // Connect button between this pin and GND
+const int buttonPin = 25;     // Connect button between this pin and GND
 int isExercise = 0;           // 0 = REST, 1 = EXERCISE
 int buttonState;
 int lastButtonState = HIGH;   // INPUT_PULLUP
